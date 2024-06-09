@@ -19,3 +19,4 @@ model Stock {
   tipoProducto     String
   stockDisponible  Int
 }
+
