@@ -23,12 +23,13 @@ const AppDataSource = new DataSource({
 
 // Middleware para habilitar CORS
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:8080/users');
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
     // Otros encabezados y métodos permitidos según sea necesario
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
     next();
   });
+
 
   
 AppDataSource.initialize().then(async () => {
@@ -53,3 +54,7 @@ AppDataSource.initialize().then(async () => {
     console.log(`Servidor escuchando en http://localhost:${port}`);
   });
 }).catch(error => console.log(error));
+function cors(_corsOptions: { origin: string; methods: string[]; allowedHeaders: string[]; }): any {
+  throw new Error('Function not implemented.');
+}
+
