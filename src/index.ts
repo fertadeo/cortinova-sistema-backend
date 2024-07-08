@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import colors from 'colors'
 import { DataSource } from 'typeorm';
 import express from 'express';
 import { User } from './entity/User';
@@ -30,7 +31,6 @@ app.use((req, res, next) => {
     next();
   });
 
-
   
 AppDataSource.initialize().then(async () => {
   const userRepository = AppDataSource.getRepository(User);
@@ -51,7 +51,7 @@ AppDataSource.initialize().then(async () => {
   });
 
   app.listen(port, () => {
-    console.log(`Servidor escuchando en http://localhost:${port}`);
+    console.log(colors.blue(`Servidor escuchando en http://localhost:${port}`));
   });
 }).catch(error => console.log(error));
 function cors(_corsOptions: { origin: string; methods: string[]; allowedHeaders: string[]; }): any {
