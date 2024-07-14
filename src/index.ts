@@ -3,9 +3,22 @@ import colors from 'colors'
 import { DataSource } from 'typeorm';
 import express from 'express';
 import { User } from './entity/User';
+import clientesRoutes from './routes/clientesRoutes';
 
 const app = express();
 const port = 8080;
+
+const processRequest = (req: { url: any; },res: {
+  setHeader(arg0: string, arg1: string): unknown;
+  statusCode: number; end: (arg0: string) => void; 
+}) => {
+  if (req.url === '/') {
+    res.statusCode = 200 //OK
+    res.setHeader('Content-type', 'text/plain')
+    res.end('Bienvenido a mi pagina de inicio')
+  }
+}
+
 
 app.use(express.json());
 
@@ -47,8 +60,17 @@ AppDataSource.initialize().then(async () => {
   app.post('/users', async (req, res) => {
     const user = userRepository.create(req.body);
     const result = await userRepository.save(user);
+    
     res.send(result);
+    
   });
+    
+  app.use(express.json());
+
+app.use('/api/clientes', clientesRoutes);
+
+
+
 
   app.listen(port, () => {
     console.log(colors.blue(`Servidor escuchando en http://localhost:${port}`));
