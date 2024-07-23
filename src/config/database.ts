@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { User } from '../entities/User';
 import { Clientes } from '../entities/Clientes';
+import { Pedido } from '../entities/Pedido';
 
 export const AppDataSource = new DataSource({
   type: 'mysql',
@@ -12,7 +13,7 @@ export const AppDataSource = new DataSource({
   database: 'cortinova',
   synchronize: true,
   logging: false,
-  entities: [User, Clientes],
+  entities: [User, Clientes, Pedido],
 });
 
 export const initializeDatabase = async () => {

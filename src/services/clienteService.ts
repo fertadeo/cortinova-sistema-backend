@@ -1,7 +1,9 @@
 import { AppDataSource } from '../config/database';
 import { Clientes } from '../entities/Clientes';
+import { Pedido } from '../entities/Pedido';
 
 const clienteRepository = AppDataSource.getRepository(Clientes);
+const pedidoRepository = AppDataSource.getRepository(Pedido);
 
 export const clientesService = {
   getAllClientes: async (): Promise<Clientes[]> => {
@@ -11,25 +13,38 @@ export const clientesService = {
     const cliente = clienteRepository.create(clienteData);
     return await clienteRepository.save(cliente);
   },
-  
   updateCliente: async (id: number, clienteData: Partial<Clientes>): Promise<Clientes | undefined> => {
     try {
-      // Find the cliente by ID
       const clienteToUpdate = await clienteRepository.findOneBy({ id });
 
-      // Check if cliente exists
       if (!clienteToUpdate) {
         throw new Error(`Cliente with ID ${id} not found`);
       }
 
-      // Merge cliente data (avoid mutation if necessary)
-      Object.assign(clienteToUpdate, clienteData); // Or use a spread operator for a new object
+      Object.assign(clienteToUpdate, clienteData);
 
-      // Save the updated cliente
       return await clienteRepository.save(clienteToUpdate);
     } catch (error) {
       console.error('Error updating cliente:', error);
-      throw error; // Re-throw for proper error handling in the controller
+      throw error;
+    }
+  },
+  deleteCliente: async (id: number): Promise<void> => {
+    try {
+      // Eliminar pedidos asociados al cliente
+      await pedidoRepository.delete({ cliente: { id } });
+
+      // Ahora se puede eliminar el cliente
+      const clienteToDelete = await clienteRepository.findOneBy({ id });
+
+      if (!clienteToDelete) {
+        throw new Error(`Cliente with ID ${id} not found`);
+      }
+
+      await clienteRepository.remove(clienteToDelete);
+    } catch (error) {
+      console.error('Error deleting cliente:', error);
+      throw error;
     }
   },
 };
