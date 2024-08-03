@@ -40,7 +40,7 @@ export const updateCliente = async (req: Request, res: Response) => {
     console.log(error);
   }
 };
-
+ 
 export const deleteCliente = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
 
