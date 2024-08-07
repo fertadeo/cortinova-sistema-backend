@@ -4,6 +4,9 @@ import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 export class Clientes {
   @PrimaryGeneratedColumn()
     id: number = 0;
+    
+  @Column()
+    dni: string = ''; 
 
   @Column()
     nombre: string = '';
