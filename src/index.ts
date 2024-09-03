@@ -5,6 +5,16 @@ import { initializeDatabase, AppDataSource } from './config/database';
 import { User } from './entities/User';
 import clientesRoutes from './routes/clientesRoutes';
 import { corsMiddleware } from './middlewares/cors';
+import authRoutes from './routes/auth';
+import bodyParser from 'body-parser';
+import dotenv from 'dotenv';
+import userRoutes from './routes/userRoutes';
+
+dotenv.config();
+
+
+
+
 
 const app = express();
 const port = 8080;
@@ -15,6 +25,9 @@ app.use(corsMiddleware);
 
 // Rutas
 app.use('/api/clientes', clientesRoutes);
+app.use('/api/auth', authRoutes);
+app.use(bodyParser.json()); // Para parsear JSON
+app.use('/api/users', userRoutes);
 
 // Rutas adicionales
 app.get('/', (req, res) => {
