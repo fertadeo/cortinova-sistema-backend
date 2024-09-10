@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 07-08-2024 a las 02:16:23
+-- Tiempo de generación: 11-09-2024 a las 01:43:32
 -- Versión del servidor: 10.4.27-MariaDB
 -- Versión de PHP: 7.4.33
 
@@ -46,7 +46,7 @@ INSERT INTO `clientes` (`id`, `nombre`, `email`, `direccion`, `telefono`, `dni`)
 (3, 'Pedro Rodriguez', 'pedro.rodriguez@example.com', '789 Calle Principal', '3541222719', ''),
 (9, 'Fernando Tadeo', 'fernandotadeos@gmail.com', 'Av. Colón 1494', '03541222719', ''),
 (12, 'Cristian Nicolas Peralta', 'Nicoperalta@gmail.com', 'Av. Peron 2650', '3804609827', ''),
-(14, 'Lucas Castaneda', 'lucascast@gmail.com', 'Laprida 221', '3516784570', '37623870');
+(15, 'Lucas Castañeda', 'lucascasta@gmail.com', 'Av Maipú 220', '0112647283232', '23123123');
 
 -- --------------------------------------------------------
 
@@ -196,21 +196,17 @@ INSERT INTO `stock` (`id`, `producto`, `cantidad`, `precio`) VALUES
 
 CREATE TABLE `user` (
   `id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
   `email` varchar(255) NOT NULL,
-  `password` varchar(255) NOT NULL
+  `password` varchar(255) NOT NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT current_timestamp(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `user`
 --
 
-INSERT INTO `user` (`id`, `name`, `email`, `password`) VALUES
-(1, 'John Doe', 'john.doe@example.com', 'password123'),
-(2, 'Jane Smith', 'jane.smith@example.com', 'password456'),
-(3, 'Alice Johnson', 'alice.johnson@example.com', 'password789'),
-(4, 'Bob Brown', 'bob.brown@example.com', 'password101'),
-(5, 'Charlie Davis', 'charlie.davis@example.com', 'password202');
+INSERT INTO `user` (`id`, `email`, `password`, `created_at`) VALUES
+(1, 'test@example.com', '$2b$10$M5PlV7bVJepbo3iHCBCkreaMKbKeMoY/lzzKR6W.q3Hg/Qcyl1XUW', '2024-09-03 14:05:11.516524');
 
 --
 -- Índices para tablas volcadas
@@ -261,7 +257,8 @@ ALTER TABLE `stock`
 -- Indices de la tabla `user`
 --
 ALTER TABLE `user`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `IDX_e12875dfb3b1d92d7d7c5377e2` (`email`);
 
 --
 -- AUTO_INCREMENT de las tablas volcadas
@@ -271,7 +268,7 @@ ALTER TABLE `user`
 -- AUTO_INCREMENT de la tabla `clientes`
 --
 ALTER TABLE `clientes`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT de la tabla `detalle_pedido`
@@ -295,7 +292,7 @@ ALTER TABLE `pedidos`
 -- AUTO_INCREMENT de la tabla `producto`
 --
 ALTER TABLE `producto`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
 
 --
 -- AUTO_INCREMENT de la tabla `stock`
@@ -307,7 +304,7 @@ ALTER TABLE `stock`
 -- AUTO_INCREMENT de la tabla `user`
 --
 ALTER TABLE `user`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- Restricciones para tablas volcadas

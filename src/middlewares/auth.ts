@@ -23,6 +23,7 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as jwt.JwtPayload;
 
     req.user = decoded;
+    console.log(decoded)
 
     next();
   } catch (error) {
