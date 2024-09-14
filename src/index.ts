@@ -6,14 +6,13 @@ import { User } from './entities/User';
 import clientesRoutes from './routes/clientesRoutes';
 import { corsMiddleware } from './middlewares/cors';
 import authRoutes from './routes/auth';
-import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
+import productosRoutes from './routes/productRoutes';
+
+
 
 dotenv.config();
-
-
-
 
 
 const app = express();
@@ -26,9 +25,8 @@ app.use(corsMiddleware);
 // Rutas
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/auth', authRoutes);
-app.use(bodyParser.json()); // Para parsear JSON
 app.use('/api/users', userRoutes);
-
+app.use('/api/productos', productosRoutes);
 // Rutas adicionales
 app.get('/', (req, res) => {
   res.send('¡Hola, mundo!');
