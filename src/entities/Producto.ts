@@ -6,13 +6,10 @@ export class Producto {
     id!: number;
 
     @Column()
-    sku!: string;
+    nombreProducto!: string;
 
     @Column()
-    nombre!: string;
-
-    @Column()
-    disponibilidad!: string;
+    cantidad_stock!: string;
 
     @Column('text')
     descripcion!: string;
