@@ -18,6 +18,7 @@ export const importarProductos = async (req: Request, res: Response) => {
             nuevoProducto.nombreProducto = producto.Producto;
             nuevoProducto.cantidad_stock = producto.Cantidad_stock;
             nuevoProducto.descripcion = producto.Descripción;
+            nuevoProducto.precioCosto = producto.PrecioCosto;
             nuevoProducto.precio = parseFloat(producto['Precio Divisa']);
             nuevoProducto.divisa = producto.Divisa;
             nuevoProducto.descuento = parseFloat(producto.Descuento.replace('%', ''));

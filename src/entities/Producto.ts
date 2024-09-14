@@ -14,6 +14,9 @@ export class Producto {
     @Column('text')
     descripcion!: string;
 
+    @Column('text')
+    precioCosto!: string;
+
     @Column('decimal')
     precio!: number;
 
