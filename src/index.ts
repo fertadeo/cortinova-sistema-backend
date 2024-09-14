@@ -27,6 +27,8 @@ app.use('/api/clientes', clientesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/productos', productosRoutes);
+app.use('/api', productosRoutes); // Integrar las rutas de productos bajo el prefijo /api
+
 // Rutas adicionales
 app.get('/', (req, res) => {
   res.send('¡Hola, mundo!');

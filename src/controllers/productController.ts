@@ -34,3 +34,18 @@ export const importarProductos = async (req: Request, res: Response) => {
         return res.status(500).json({ message: 'Error al importar productos en la base de datos' });
     }
 };
+
+
+// controllers/productController.ts
+
+const productoRepository = AppDataSource.getRepository(Producto);
+
+export const obtenerProductos = async (req: Request, res: Response) => {
+  try {
+    const productos = await productoRepository.find(); // Obtiene todos los productos
+    res.json(productos); // Devuelve los productos en formato JSON
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener los productos' });
+    console.error(error);
+  }
+};
