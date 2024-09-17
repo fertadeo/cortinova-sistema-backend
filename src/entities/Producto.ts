@@ -11,18 +11,18 @@ export class Producto {
     @Column()
     cantidad_stock!: string;
 
-    @Column('text')
+    @Column()
     descripcion!: string;
 
-    @Column('text')
+    @Column()
     precioCosto!: string;
 
-    @Column('decimal')
+    @Column()
     precio!: number;
 
     @Column()
     divisa!: string;
 
-    @Column('decimal')
+    @Column()
     descuento!: number;
 }

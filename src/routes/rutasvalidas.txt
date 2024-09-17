@@ -1,7 +1,7 @@
 GET
 
 http://localhost:8080/api/clientes
-
+http://localhost:8080/api/productos/importar-productos
 
 POST 
 
