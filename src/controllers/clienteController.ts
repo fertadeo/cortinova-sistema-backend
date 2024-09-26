@@ -21,7 +21,17 @@ export const createCliente = async (req: Request, res: Response) => {
     const clienteCreado = await clientesService.createCliente(nuevoCliente);
     res.status(201).json(clienteCreado);
   } catch (error) {
-    res.status(500).json({ message: 'Error al crear el cliente' });
+    // Verificar si el error es una instancia de Error
+    if (error instanceof Error) {
+      console.log(`Error al crear cliente: ${error.message}`);  // Registro del error en la consola
+      if (error.message === 'El cliente ya existe') {
+        return res.status(400).json({ message: 'El cliente ya existe' });
+      }
+      return res.status(500).json({ message: error.message });
+    }
+
+    // Si el error no es de tipo Error, manejarlo genéricamente
+    res.status(500).json({ message: 'Error desconocido al crear el cliente' });
   }
 };
 
@@ -40,7 +50,7 @@ export const updateCliente = async (req: Request, res: Response) => {
     console.log(error);
   }
 };
- 
+
 export const deleteCliente = async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
 

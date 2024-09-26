@@ -9,10 +9,19 @@ export const clientesService = {
   getAllClientes: async (): Promise<Clientes[]> => {
     return await clienteRepository.find();
   },
+
   createCliente: async (clienteData: Partial<Clientes>): Promise<Clientes> => {
+    // Verificar si el cliente ya existe por DNI
+    const clienteExistente = await clienteRepository.findOne({ where: { dni: clienteData.dni } });
+    if (clienteExistente) {
+      throw new Error('El cliente con este DNI ya existe');
+    }
+
+    // Si no existe, proceder con la creación
     const cliente = clienteRepository.create(clienteData);
     return await clienteRepository.save(cliente);
   },
+
   updateCliente: async (id: number, clienteData: Partial<Clientes>): Promise<Clientes | undefined> => {
     try {
       const clienteToUpdate = await clienteRepository.findOneBy({ id });
@@ -29,6 +38,7 @@ export const clientesService = {
       throw error;
     }
   },
+
   deleteCliente: async (id: number): Promise<void> => {
     try {
       // Eliminar pedidos asociados al cliente
