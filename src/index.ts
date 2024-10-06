@@ -11,6 +11,9 @@ import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
 
 
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+dotenv.config({ path: envFile });
+
 
 dotenv.config();
 
@@ -27,7 +30,7 @@ app.use('/api/clientes', clientesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/productos', productosRoutes);
-app.use('/api', productosRoutes); // Integrar las rutas de productos bajo el prefijo /api
+app.use('/api', productosRoutes); 
 
 // Rutas adicionales
 app.get('/', (req, res) => {
