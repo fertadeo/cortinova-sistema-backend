@@ -1,0 +1,20 @@
+GET
+
+http://localhost:8080/api/clientes
+http://localhost:8080/api/productos/importar-productos
+
+POST 
+
+http://localhost:8080/api/productos/importar-productos
+
+Ejemplo de post: [
+  {
+    "id": 1,
+    "Producto": "Producto A",
+    "Cantidad_stock": "10",
+    "Descripción": "Descripción del producto A",
+    "Precio Divisa": "100.00",
+    "Divisa": "USD", 
+    "Descuento": "10%"
+  }
+]
