@@ -16,7 +16,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 export const AppDataSource = new DataSource({
   type: 'mysql',
   host: isProduction ? process.env.DB_HOST_PROD : process.env.DB_HOST_DEV,
-  port:  3306, // Se usa el puerto común de MySQL o uno que configures
+  port:  3306, 
   username: isProduction ? process.env.DB_USER_PROD : process.env.DB_USER_DEV,
   password: isProduction ? process.env.DB_PASSWORD_PROD : process.env.DB_PASSWORD_DEV,
   database: isProduction ? process.env.DB_NAME_PROD : process.env.DB_NAME_DEV,
@@ -25,12 +25,20 @@ export const AppDataSource = new DataSource({
   entities: [User, Clientes, Pedido, Producto],
 });
 
+
+console.log({
+  DB_HOST: process.env.DB_HOST_DEV,
+  DB_USER: process.env.DB_USER_DEV,
+  DB_PASSWORD: process.env.DB_PASSWORD_DEV,
+  DB_NAME: process.env.DB_NAME_DEV,
+});
+
 export const initializeDatabase = async () => {
   try {
     await AppDataSource.initialize();
     console.log('Conexión a la base de datos establecida');
   } catch (error) {
     console.error('Error al conectar con la base de datos', error);
-    process.exit(1); // Termina la aplicación si falla la conexión
+    process.exit(1); 
   }
 };
