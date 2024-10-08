@@ -6,11 +6,15 @@ import { Pedido } from '../entities/Pedido';
 import { Producto } from '../entities/Producto';
 import dotenv from 'dotenv';
 
-// Cargar variables de entorno desde el archivo .env
-dotenv.config();
 
 // Determinar si estamos en modo producción o desarrollo
 const isProduction = process.env.NODE_ENV === 'production';
+
+dotenv.config({
+  path: isProduction ? '.env.production' : '.env'
+});
+
+
 
 // Configurar las variables de conexión dependiendo del entorno
 export const AppDataSource = new DataSource({

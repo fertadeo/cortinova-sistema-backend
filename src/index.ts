@@ -6,16 +6,9 @@ import { User } from './entities/User';
 import clientesRoutes from './routes/clientesRoutes';
 import { corsMiddleware } from './middlewares/cors';
 import authRoutes from './routes/auth';
-import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
 
-
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
-dotenv.config({ path: envFile });
-
-
-dotenv.config();
 
 
 const app = express();
