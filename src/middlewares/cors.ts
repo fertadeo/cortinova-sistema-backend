@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 export const corsMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const allowedOrigin = process.env.NODE_ENV === 'production'
-    ? process.env.NEXT_PUBLIC_API_URL || 'https://cortinova-sistema.vercel.app/' // fallback para producción
+    ? process.env.NEXT_PUBLIC_API_URL || 'https://cortinova-sistema.vercel.app' // fallback para producción
     : 'http://localhost:3000'; // desarrollo
 
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
