@@ -25,4 +25,16 @@ export class Producto {
 
     @Column()
     descuento!: number;
+
+    @Column()
+    proveedor_id!: string;
+
+    @Column()
+    rubro_id!: string;
+
+    @Column()
+    sistema_id!: string;
+
+    @Column()
+    disponible!: string;
 }
