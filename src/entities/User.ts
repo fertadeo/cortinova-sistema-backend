@@ -14,4 +14,7 @@ export class User {
 
   @CreateDateColumn()
   created_at!: Date;
+
+  @Column()
+  nivel_usuario!: Number;
 }

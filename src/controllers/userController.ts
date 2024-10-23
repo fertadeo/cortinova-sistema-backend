@@ -11,7 +11,7 @@ const saltRounds = 10;
 
 // Registrar nuevo usuario
 export const registerUser = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password, nivel_usuario } = req.body;
 
   try {
     // Verificar si el usuario ya existe
@@ -27,7 +27,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const newUser = new User();
     newUser.email = email;
     newUser.password = hashedPassword;
-
+    newUser.nivel_usuario = nivel_usuario;
     await AppDataSource.getRepository(User).save(newUser);
 
     // Generar un JWT para el usuario recién creado
