@@ -18,3 +18,17 @@ Ejemplo de post: [
     "Descuento": "10%"
   }
 ]
+
+
+
+POST
+
+http://localhost:8080/api/auth/register
+
+{
+    "email": "ftadeo@cortinova.com",
+    "password": "password123",
+    "created_at": "2024-10-18T14:30:00Z",
+    "nivel_usuario": 5
+}
+
