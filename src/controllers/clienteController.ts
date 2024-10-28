@@ -32,7 +32,7 @@ export const getClientesPorMes = async (req: Request, res: Response) => {
       const result = await AppDataSource.query(query);
       res.json(result);
   } catch (error) {
-      console.error(error); // Agrega este log para ver el error en la consola
+      console.error(error); 
       res.status(500).json({ error: 'Error al obtener los clientes por mes' });
   }
 };
