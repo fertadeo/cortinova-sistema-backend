@@ -15,6 +15,28 @@ export const getClientes = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+export const getClientesPorMes = async (req: Request, res: Response) => {
+  try {
+      const query = `
+          SELECT 
+              MONTH(fecha_registro) AS mes, 
+              COUNT(*) AS cantidad 
+          FROM clientes
+          GROUP BY MONTH(fecha_registro)
+          ORDER BY mes;
+      `;
+
+      const result = await AppDataSource.query(query);
+      res.json(result);
+  } catch (error) {
+      console.error(error); 
+      res.status(500).json({ error: 'Error al obtener los clientes por mes' });
+  }
+};
+
 export const createCliente = async (req: Request, res: Response) => {
   try {
     const nuevoCliente = req.body;
