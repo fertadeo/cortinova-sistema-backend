@@ -19,9 +19,10 @@ export const importarProductos = async (req: Request, res: Response) => {
       nuevoProducto.cantidad_stock = producto.Cantidad_stock;
       nuevoProducto.descripcion = producto.Descripción;
       nuevoProducto.precioCosto = producto.PrecioCosto;
-      nuevoProducto.precio = parseFloat(producto['Precio Divisa']);
+      nuevoProducto.precio = producto.precio;
       nuevoProducto.divisa = producto.Divisa;
       nuevoProducto.descuento = parseFloat(producto.Descuento.replace('%', ''));
+      nuevoProducto.proveedor_id = producto.proveedor_id; 
 
       console.log('Guardando producto:', nuevoProducto);
 
@@ -41,8 +42,8 @@ const productoRepository = AppDataSource.getRepository(Producto);
 // Función para obtener todos los productos
 export const obtenerTodosLosProductos = async (req: Request, res: Response) => {
   try {
-    const productos = await productoRepository.find({ relations: ['proveedor'] }); // Asegúrate de incluir relaciones necesarias
-    res.json(productos); // Devolver todos los productos en formato JSON
+    const productos = await productoRepository.find({ relations: ['proveedor'] });
+    res.json(productos);
   } catch (error) {
     console.error('Error al obtener todos los productos:', error);
     res.status(500).json({ message: 'Error al obtener todos los productos' });
@@ -51,16 +52,13 @@ export const obtenerTodosLosProductos = async (req: Request, res: Response) => {
 
 // Función para obtener un producto por ID
 export const obtenerProductoPorId = async (req: Request, res: Response) => {
-  const { id } = req.params; // Obtener el ID desde los parámetros de la URL
-
-  // Verificación para asegurar que el id es un número válido
+  const { id } = req.params;
   const productId = Number(id);
   if (isNaN(productId) || productId <= 0) {
     return res.status(400).json({ message: 'ID de producto inválido' });
   }
 
   try {
-    // Buscar el producto por ID y cargar la relación con el proveedor
     const producto = await productoRepository.findOne({
       where: { id: productId },
       relations: ['proveedor'],
@@ -70,7 +68,6 @@ export const obtenerProductoPorId = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
 
-    // Preparar el resultado con los datos del proveedor
     const resultado = {
       id: producto.id,
       nombreProducto: producto.nombreProducto,
@@ -79,7 +76,7 @@ export const obtenerProductoPorId = async (req: Request, res: Response) => {
       nombreProveedores: producto.proveedor ? producto.proveedor.nombreProveedores : null,
     };
 
-    res.json(resultado); // Devolver el resultado en formato JSON
+    res.json(resultado);
   } catch (error) {
     console.error('Error al obtener el producto:', error);
     res.status(500).json({ message: 'Error al obtener el producto' });
@@ -88,26 +85,48 @@ export const obtenerProductoPorId = async (req: Request, res: Response) => {
   console.log('ID recibido:', id);
 };
 
+
+// Nueva función para obtener el último ID de los productos
+export const obtenerUltimoIdProducto = async (req: Request, res: Response) => {
+  try {
+    // Obtener el producto con el ID más alto
+    const ultimoProducto = await productoRepository
+      .createQueryBuilder('producto')
+      .orderBy('producto.id', 'DESC')
+      .getOne();
+
+    if (!ultimoProducto) {
+      return res.status(404).json({ message: 'No se encontraron productos' });
+    }
+
+    // Retornar el ID más alto
+    return res.json({ ultimoId: ultimoProducto.id });
+  
+  } catch (error) {
+    console.error('Error al obtener el último ID de producto:', error);
+    return res.status(500).json({ message: 'Error al obtener el último ID de producto' });
+  }
+};
+
+
+
 // Función para actualizar un producto existente
 export const actualizarProducto = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { nombreProducto, cantidad_stock, descripcion, precioCosto, precio, divisa, descuento, rubro_id, sistema_id, disponible, proveedor_id } = req.body;
 
-  // Verificación para asegurar que el id es un número válido
   const productId = Number(id);
   if (isNaN(productId) || productId <= 0) {
     return res.status(400).json({ message: 'ID de producto inválido' });
   }
 
   try {
-    // Buscar el producto por ID
     const producto = await productoRepository.findOne({ where: { id: productId } });
 
     if (!producto) {
       return res.status(404).json({ message: 'Producto no encontrado' });
     }
 
-    // Actualizar los campos del producto
     producto.nombreProducto = nombreProducto ?? producto.nombreProducto;
     producto.cantidad_stock = cantidad_stock ?? producto.cantidad_stock;
     producto.descripcion = descripcion ?? producto.descripcion;
@@ -120,12 +139,90 @@ export const actualizarProducto = async (req: Request, res: Response) => {
     producto.disponible = disponible ?? producto.disponible;
     producto.proveedor = proveedor_id ?? producto.proveedor;
 
-    // Guardar los cambios
     await productoRepository.save(producto);
 
     return res.status(200).json({ message: 'Producto actualizado correctamente', producto });
   } catch (error) {
     console.error('Error al actualizar el producto:', error);
     res.status(500).json({ message: 'Error al actualizar el producto' });
+  }
+};
+
+// Nueva función para actualizar los precios de productos por proveedor
+export const actualizarPreciosPorProveedor = async (req: Request, res: Response) => {
+  const { proveedor_id, porcentaje } = req.body;
+
+  if (!proveedor_id || !porcentaje) {
+    return res.status(400).json({ message: 'Proveedor y porcentaje son requeridos' });
+  }
+
+  try {
+    // Buscar los productos del proveedor especificado
+    const productos = await productoRepository.find({
+      where: { proveedor: { id: proveedor_id } },
+    });
+
+    if (productos.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron productos para el proveedor especificado' });
+    }
+
+    // Actualizar el precio de cada producto basado en el porcentaje
+    const factor = 1 + porcentaje / 100;
+    for (const producto of productos) {
+      producto.precio *= factor;
+      await productoRepository.save(producto);
+    }
+
+    return res.status(200).json({
+      message: 'Precios actualizados correctamente',
+      productosActualizados: productos.length,
+    });
+  } catch (error) {
+    console.error('Error al actualizar precios por proveedor:', error);
+    res.status(500).json({ message: 'Error al actualizar precios por proveedor' });
+  }
+};
+
+
+// Controlador para crear un nuevo producto
+export const crearProducto = async (req: Request, res: Response) => {
+  const {
+    id,
+    nombreProducto,
+    cantidad_stock,
+    descripcion,
+    precioCosto,
+    precio,
+    divisa,
+    descuento,
+    rubro_id,
+    sistema_id,
+    disponible,
+    proveedor_id,
+  } = req.body;
+
+  try {
+    // Crear una instancia de producto
+    const nuevoProducto = new Producto();
+    nuevoProducto.id = id;
+    nuevoProducto.nombreProducto = nombreProducto;
+    nuevoProducto.cantidad_stock = cantidad_stock;
+    nuevoProducto.descripcion = descripcion;
+    nuevoProducto.precioCosto = precioCosto;
+    nuevoProducto.precio = precio;
+    nuevoProducto.divisa = divisa;
+    nuevoProducto.descuento = descuento;
+    nuevoProducto.rubro_id = rubro_id;
+    nuevoProducto.sistema_id = sistema_id;
+    nuevoProducto.disponible = disponible;
+    nuevoProducto.proveedor = proveedor_id;
+
+    // Guardar el nuevo producto en la base de datos
+    await AppDataSource.getRepository(Producto).save(nuevoProducto);
+
+    return res.status(201).json({ message: 'Producto creado exitosamente', producto: nuevoProducto });
+  } catch (error) {
+    console.error('Error al crear el producto:', error);
+    return res.status(500).json({ message: 'Error al crear el producto' });
   }
 };

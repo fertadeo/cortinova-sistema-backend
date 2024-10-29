@@ -36,7 +36,11 @@ export class Producto {
   @Column()
   disponible!: boolean;
 
+  @Column()
+  proveedor_id!: number;
+
   @ManyToOne(() => Proveedores, (proveedor) => proveedor.productos)
   @JoinColumn({ name: 'proveedor_id' })  // Especifica que la columna de clave foránea es 'proveedorid'
   proveedor!: Proveedores;
+  // proveedor_id: any;
 }
