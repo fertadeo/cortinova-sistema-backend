@@ -86,6 +86,33 @@ export const obtenerProductoPorId = async (req: Request, res: Response) => {
 };
 
 
+
+export const obtenerProductosPorProveedor = async (req: Request, res: Response) => {
+  const { proveedor_id } = req.params;
+
+  const proveedorId = Number(proveedor_id);
+  if (isNaN(proveedorId) || proveedorId <= 0) {
+    return res.status(400).json({ message: 'ID de proveedor inválido' });
+  }
+
+  try {
+    // Buscar productos por proveedor
+    const productos = await productoRepository.find({
+      where: { proveedor: { id: proveedorId } },
+      relations: ['proveedor'],
+    });
+
+    if (productos.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron productos para el proveedor especificado' });
+    }
+
+    return res.status(200).json({ productos });
+  } catch (error) {
+    console.error('Error al obtener productos por proveedor:', error);
+    return res.status(500).json({ message: 'Error al obtener productos por proveedor' });
+  }
+};
+
 // Nueva función para obtener el último ID de los productos
 export const obtenerUltimoIdProducto = async (req: Request, res: Response) => {
   try {
