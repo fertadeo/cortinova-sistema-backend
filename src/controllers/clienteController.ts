@@ -37,6 +37,22 @@ export const getClientesPorMes = async (req: Request, res: Response) => {
   }
 };
 
+export const getNextClienteId = async (req: Request, res: Response) => {
+  try {
+    // Consulta para contar los clientes totales
+    const totalClientes = await clienteRepository.count();
+
+    // El próximo ID es el total + 1
+    const nextId = totalClientes + 1;
+
+    res.json({ nextId });
+  } catch (error) {
+    console.error('Error al calcular el próximo ID de cliente:', error);
+    res.status(500).json({ message: 'Error al calcular el próximo ID de cliente' });
+  }
+};
+
+
 export const createCliente = async (req: Request, res: Response) => {
   try {
     const nuevoCliente = req.body;
