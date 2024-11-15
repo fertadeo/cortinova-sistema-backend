@@ -10,7 +10,7 @@ router.get('/', obtenerTodosLosProductos);
 router.get('/last-id/obtener', obtenerUltimoIdProducto)
 router.get('/', obtenerProductoPorId)
 router.put('/:id', actualizarProducto); // Nueva ruta para actualizar productos
-router.put('/precios-por-proveedor/:id', actualizarPreciosPorProveedor);
+router.put('/actualizar-precios/:id', actualizarPreciosPorProveedor);
 router.get('/proveedor/:proveedor_id', obtenerProductosPorProveedor);
 
 router.post('/crear-producto', crearProducto)

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Producto } from '../entities/Producto';
 import { AppDataSource } from '../config/database'; // Configura tu datasource de TypeORM
 
+
 // Controlador para importar productos (sin modificaciones)
 export const importarProductos = async (req: Request, res: Response) => {
   const productos = req.body;
@@ -175,40 +176,46 @@ export const actualizarProducto = async (req: Request, res: Response) => {
   }
 };
 
-// Nueva función para actualizar los precios de productos por proveedor
-export const actualizarPreciosPorProveedor = async (req: Request, res: Response) => {
-  const { proveedor_id, porcentaje } = req.body;
 
-  if (!proveedor_id || !porcentaje) {
-    return res.status(400).json({ message: 'Proveedor y porcentaje son requeridos' });
+export const actualizarPreciosPorProveedor = async (req: Request, res: Response) => {
+  const productosActualizados = req.body;
+
+  if (!Array.isArray(productosActualizados)) {
+    return res.status(400).json({ message: 'Se esperaba un array de productos para actualizar' });
   }
 
   try {
-    // Buscar los productos del proveedor especificado
-    const productos = await productoRepository.find({
-      where: { proveedor: { id: proveedor_id } },
-    });
+    for (const productoActualizado of productosActualizados) {
+      const { id, Precio } = productoActualizado;
 
-    if (productos.length === 0) {
-      return res.status(404).json({ message: 'No se encontraron productos para el proveedor especificado' });
-    }
+      // Validar que el producto tenga un ID y un precio válido
+      if (!id || typeof Precio !== 'number') {
+        console.error(`Producto inválido: ${JSON.stringify(productoActualizado)}`);
+        continue;
+      }
 
-    // Actualizar el precio de cada producto basado en el porcentaje
-    const factor = 1 + porcentaje / 100;
-    for (const producto of productos) {
-      producto.precio *= factor;
+      // Buscar el producto por ID
+      const producto = await productoRepository.findOne({ where: { id } });
+
+      if (!producto) {
+        console.warn(`Producto con ID ${id} no encontrado`);
+        continue;
+      }
+
+      // Actualizar el precio del producto
+      producto.precio = Precio;
+
+      // Guardar los cambios en la base de datos
       await productoRepository.save(producto);
     }
 
-    return res.status(200).json({
-      message: 'Precios actualizados correctamente',
-      productosActualizados: productos.length,
-    });
+    return res.status(200).json({ message: 'Precios actualizados correctamente' });
   } catch (error) {
-    console.error('Error al actualizar precios por proveedor:', error);
-    res.status(500).json({ message: 'Error al actualizar precios por proveedor' });
+    console.error('Error al actualizar precios:', error);
+    return res.status(500).json({ message: 'Error al actualizar precios' });
   }
 };
+
 
 
 // Controlador para crear un nuevo producto

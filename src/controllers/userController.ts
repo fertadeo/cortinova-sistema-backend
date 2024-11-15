@@ -64,14 +64,14 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await AppDataSource.getRepository(User).findOneBy({ email });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Verificar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Generar el token JWT
