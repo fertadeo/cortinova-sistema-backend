@@ -45,13 +45,13 @@ router.post('/login', async (req, res) => {
     const user = await userRepository.findOne({ where: { email } });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Comparar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid email or password' });
+      return res.status(400).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Crear el token JWT
