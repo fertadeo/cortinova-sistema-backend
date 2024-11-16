@@ -39,11 +39,14 @@ export const getClientesPorMes = async (req: Request, res: Response) => {
 
 export const getNextClienteId = async (req: Request, res: Response) => {
   try {
-    // Consulta para contar los clientes totales
-    const totalClientes = await clienteRepository.count();
+    // Encuentra el último cliente ordenado por ID descendente, limitando a 1 resultado
+    const [ultimoCliente] = await clienteRepository.find({
+      order: { id: "DESC" },
+      take: 1, // Limita el resultado a un registro
+    });
 
-    // El próximo ID es el total + 1
-    const nextId = totalClientes + 1;
+    // Si no hay clientes, el próximo ID será 1
+    const nextId = ultimoCliente ? ultimoCliente.id + 1 : 1;
 
     res.json({ nextId });
   } catch (error) {
