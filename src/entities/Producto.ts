@@ -19,7 +19,7 @@ export class Producto {
   precioCosto!: string;
 
   @Column()
-  precio!: number;
+  precio!: string;
 
   @Column()
   divisa!: string;
