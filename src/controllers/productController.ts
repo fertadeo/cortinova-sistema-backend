@@ -20,7 +20,7 @@ export const importarProductos = async (req: Request, res: Response) => {
       nuevoProducto.cantidad_stock = producto.Cantidad_stock;
       nuevoProducto.descripcion = producto.Descripción;
       nuevoProducto.precioCosto = producto.PrecioCosto;
-      nuevoProducto.precio = producto.precio;
+      nuevoProducto.precio = producto.Precio;
       nuevoProducto.divisa = producto.Divisa;
       nuevoProducto.descuento = parseFloat(producto.Descuento.replace('%', ''));
       nuevoProducto.proveedor_id = producto.proveedor_id; 
@@ -189,7 +189,7 @@ export const actualizarPreciosPorProveedor = async (req: Request, res: Response)
       const { id, Precio } = productoActualizado;
 
       // Validar que el producto tenga un ID y un precio válido
-      if (!id || typeof Precio !== 'number') {
+      if (!id || typeof Precio !== 'string') {
         console.error(`Producto inválido: ${JSON.stringify(productoActualizado)}`);
         continue;
       }
