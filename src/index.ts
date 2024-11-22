@@ -8,6 +8,7 @@ import { corsMiddleware } from './middlewares/cors';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
+import proveedoresRoutes from './routes/proveedoresRoutes';
 
 
 
@@ -23,7 +24,8 @@ app.use('/api/clientes', clientesRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/productos', productosRoutes);
-app.use('/api', productosRoutes); 
+app.use('/api/proveedores', proveedoresRoutes);
+
 
 // Rutas adicionales
 app.get('/', (req, res) => {

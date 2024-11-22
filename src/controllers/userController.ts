@@ -11,7 +11,7 @@ const saltRounds = 10;
 
 // Registrar nuevo usuario
 export const registerUser = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password, nivel_usuario } = req.body;
 
   try {
     // Verificar si el usuario ya existe
@@ -27,7 +27,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const newUser = new User();
     newUser.email = email;
     newUser.password = hashedPassword;
-
+    newUser.nivel_usuario = nivel_usuario;
     await AppDataSource.getRepository(User).save(newUser);
 
     // Generar un JWT para el usuario recién creado
@@ -64,14 +64,14 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await AppDataSource.getRepository(User).findOneBy({ email });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Verificar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Email o contraseña incorrectos' });
     }
 
     // Generar el token JWT

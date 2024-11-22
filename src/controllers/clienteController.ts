@@ -15,6 +15,47 @@ export const getClientes = async (req: Request, res: Response) => {
   }
 };
 
+
+
+
+export const getClientesPorMes = async (req: Request, res: Response) => {
+  try {
+      const query = `
+          SELECT 
+              MONTH(fecha_registro) AS mes, 
+              COUNT(*) AS cantidad 
+          FROM clientes
+          GROUP BY MONTH(fecha_registro)
+          ORDER BY mes;
+      `;
+
+      const result = await AppDataSource.query(query);
+      res.json(result);
+  } catch (error) {
+      console.error(error); 
+      res.status(500).json({ error: 'Error al obtener los clientes por mes' });
+  }
+};
+
+export const getNextClienteId = async (req: Request, res: Response) => {
+  try {
+    // Encuentra el último cliente ordenado por ID descendente, limitando a 1 resultado
+    const [ultimoCliente] = await clienteRepository.find({
+      order: { id: "DESC" },
+      take: 1, // Limita el resultado a un registro
+    });
+
+    // Si no hay clientes, el próximo ID será 1
+    const nextId = ultimoCliente ? ultimoCliente.id + 1 : 1;
+
+    res.json({ nextId });
+  } catch (error) {
+    console.error('Error al calcular el próximo ID de cliente:', error);
+    res.status(500).json({ message: 'Error al calcular el próximo ID de cliente' });
+  }
+};
+
+
 export const createCliente = async (req: Request, res: Response) => {
   try {
     const nuevoCliente = req.body;
