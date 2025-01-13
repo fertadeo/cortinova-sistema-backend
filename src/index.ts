@@ -10,6 +10,7 @@ import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
 import proveedoresRoutes from './routes/proveedoresRoutes';
 import presupuestoRoutes from './routes/presupuestoRoutes';
+import sistemasRoutes from './routes/sistemasRoutes';
 
 
 
@@ -27,6 +28,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/presupuestos', presupuestoRoutes);
+app.use('/api/sistemas', sistemasRoutes);
 
 
 // Rutas adicionales

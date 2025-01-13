@@ -1,10 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column } from "typeorm";
 
-@Entity()
+@Entity('sistemas')
 export class Sistemas {
     @PrimaryGeneratedColumn()
     id!: number;
 
     @Column()
-    nombre!: string;
-}
+    nombreSistemas!: string;
+
+   
+    };
