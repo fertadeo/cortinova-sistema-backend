@@ -96,9 +96,15 @@ export const presupuestoController = {
       await queryRunner.startTransaction();
 
       const presupuestoResult = await queryRunner.query(`
-        INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, total)
-        VALUES (?, ?, ?, ?)`,
-        [presupuesto.numeroPresupuesto, presupuesto.clienteId, new Date(), presupuesto.total]
+        INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, total, presupuesto_json)
+        VALUES (?, ?, ?, ?, ?)`,
+        [
+          presupuesto.numeroPresupuesto,
+          presupuesto.clienteId,
+          new Date(),
+          presupuesto.total,
+          JSON.stringify(presupuesto)
+        ]
       );
 
       const presupuestoId = presupuestoResult.insertId;
