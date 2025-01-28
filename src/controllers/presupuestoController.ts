@@ -88,29 +88,37 @@ export const presupuestoController = {
 
   // Crear nuevo presupuesto
   createPresupuesto: async (req: Request, res: Response) => {
-    const presupuesto = req.body;
+    const presupuestoData = req.body;
     const queryRunner = AppDataSource.createQueryRunner();
 
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
+      // Calcular el total basado en los productos
+      const total = presupuestoData.productos.reduce((sum: number, producto: any) => {
+        return sum + (producto.cantidad * producto.precioUnitario);
+      }, 0);
+
+      // Asignar el total calculado
+      presupuestoData.total = total;
+
       const presupuestoResult = await queryRunner.query(`
         INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, total, presupuesto_json)
         VALUES (?, ?, ?, ?, ?)`,
         [
-          presupuesto.numeroPresupuesto,
-          presupuesto.clienteId,
+          presupuestoData.numeroPresupuesto,
+          presupuestoData.clienteId,
           new Date(),
-          presupuesto.total,
-          JSON.stringify(presupuesto)
+          total,
+          JSON.stringify(presupuestoData)
         ]
       );
 
       const presupuestoId = presupuestoResult.insertId;
 
       await Promise.all(
-        presupuesto.productos.map(async (producto: any) => {
+        presupuestoData.productos.map(async (producto: any) => {
           // Si es un producto del catálogo (como COLOCACIONES)
           if (producto.nombre === 'COLOCACIONES') {
             return queryRunner.query(`
