@@ -2,6 +2,9 @@
 import { Request, Response } from 'express';
 import { AppDataSource } from '../config/database';  // Tu configuración de base de datos
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { Presupuesto as PresupuestoEntity } from '../entities/Presupuestos';
+import { Pedido } from '../entities/Pedido';
+import { PedidoEstado } from '../entities/enums/PedidoEstado';
 
 interface Presupuesto {
   numeroPresupuesto: string;
@@ -88,29 +91,37 @@ export const presupuestoController = {
 
   // Crear nuevo presupuesto
   createPresupuesto: async (req: Request, res: Response) => {
-    const presupuesto = req.body;
+    const presupuestoData = req.body;
     const queryRunner = AppDataSource.createQueryRunner();
 
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
+      // Calcular el total basado en los productos
+      const total = presupuestoData.productos.reduce((sum: number, producto: any) => {
+        return sum + (producto.cantidad * producto.precioUnitario);
+      }, 0);
+
+      // Asignar el total calculado
+      presupuestoData.total = total;
+
       const presupuestoResult = await queryRunner.query(`
         INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, total, presupuesto_json)
         VALUES (?, ?, ?, ?, ?)`,
         [
-          presupuesto.numeroPresupuesto,
-          presupuesto.clienteId,
+          presupuestoData.numeroPresupuesto,
+          presupuestoData.clienteId,
           new Date(),
-          presupuesto.total,
-          JSON.stringify(presupuesto)
+          total,
+          JSON.stringify(presupuestoData)
         ]
       );
 
       const presupuestoId = presupuestoResult.insertId;
 
       await Promise.all(
-        presupuesto.productos.map(async (producto: any) => {
+        presupuestoData.productos.map(async (producto: any) => {
           // Si es un producto del catálogo (como COLOCACIONES)
           if (producto.nombre === 'COLOCACIONES') {
             return queryRunner.query(`
@@ -271,6 +282,49 @@ export const presupuestoController = {
       });
     } finally {
       await queryRunner.release();
+    }
+  },
+
+  convertirAPresupuesto: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      // 1. Obtener el presupuesto
+      const presupuesto = await AppDataSource.getRepository(PresupuestoEntity).findOne({
+        where: { id: parseInt(id) }
+      });
+
+      if (!presupuesto) {
+        return res.status(404).json({ message: 'Presupuesto no encontrado' });
+      }
+
+      // 2. Actualizar estado del presupuesto
+        await AppDataSource.getRepository(PresupuestoEntity).update(id, {
+        estado: 'CONVERTIDO_A_PEDIDO'
+      });
+
+      // 3. Crear nuevo pedido
+      const pedidoRepository = AppDataSource.getRepository(Pedido);
+      const nuevoPedido = await pedidoRepository.save({
+        clienteid: presupuesto.cliente_id,
+        fecha_pedido: new Date(),
+        total: presupuesto.total,
+        presupuesto_id: presupuesto.id,
+        pedido_json: presupuesto.presupuesto_json,
+        estado: req.body.estado || PedidoEstado.EMITIDO
+      });
+
+      return res.status(201).json({
+        message: 'Presupuesto convertido a pedido exitosamente',
+        pedido: nuevoPedido
+      });
+
+    } catch (error) {
+      console.error('Error al convertir presupuesto a pedido:', error);
+      return res.status(500).json({ 
+        message: 'Error al convertir presupuesto a pedido',
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      });
     }
   }
 };

@@ -1,37 +1,28 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from "typeorm";
 
-@Entity("presupuestos_emitidos")
+@Entity("presupuestos")
 export class Presupuesto {
     @PrimaryGeneratedColumn()
-    id?: number;
-
-    @Column("varchar", { length: 100 })
-    numero_presupuesto?: string;
-
-    @CreateDateColumn()
-    fecha?: Date;
+    id!: number;
 
     @Column()
-    cliente_id?: number;
+    numero_presupuesto!: string;
 
-    @Column("text")
-    detalle_presupuesto?: string;
+    @Column()
+    cliente_id!: number;
 
-    @Column("varchar", { length: 255 })
-    cliente_nombre?: string;
-
-    @Column("decimal", { precision: 10, scale: 2 })
-    subtotal?: number;
+    @Column()
+    fecha!: Date;
 
     @Column("decimal", { precision: 10, scale: 2 })
-    total_final?: number;
+    total!: number;
 
-    @Column("json", { nullable: true })
-    productos?: {
-        nombre: string;
-        descripcion: string;
-        cantidad: number;
-        precio_unitario: number;
-        subtotal: number;
-    }[];
+    @Column()
+    estado!: string;
+
+    @CreateDateColumn()
+    created_at!: Date;
+
+    @Column("json")
+    presupuesto_json!: any;
 }

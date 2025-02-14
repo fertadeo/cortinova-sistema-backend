@@ -11,6 +11,7 @@ import productosRoutes from './routes/productRoutes';
 import proveedoresRoutes from './routes/proveedoresRoutes';
 import presupuestoRoutes from './routes/presupuestoRoutes';
 import sistemasRoutes from './routes/sistemasRoutes';
+import pedidoRoutes from './routes/pedidoRoutes';
 
 
 
@@ -29,6 +30,7 @@ app.use('/api/productos', productosRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use('/api/presupuestos', presupuestoRoutes);
 app.use('/api/sistemas', sistemasRoutes);
+app.use('/api/pedidos', pedidoRoutes);
 
 
 // Rutas adicionales
