@@ -6,6 +6,7 @@ import { Pedido } from '../entities/Pedido';
 import { Producto } from '../entities/Producto';
 import { Proveedores } from '../entities/Proveedores';
 import { Sistemas } from '../entities/Sistemas';
+import { Presupuesto } from '../entities/Presupuestos';
 import dotenv from 'dotenv';
 
 
@@ -28,7 +29,7 @@ export const AppDataSource = new DataSource({
   database: isProduction ? process.env.DB_NAME_PROD : process.env.DB_NAME_DEV,
   synchronize: false,
   logging: false,
-  entities: [User, Clientes, Pedido, Producto, Proveedores, Sistemas],
+  entities: [User, Clientes, Pedido, Producto, Proveedores, Sistemas, Presupuesto],
 });
 
 
