@@ -19,6 +19,9 @@ import {
     @Column()
     fecha_pedido!: Date;
 
+    @Column()
+    fecha_entrega!: Date;
+  
     @Column('json')
     pedido_json!: any;
   
