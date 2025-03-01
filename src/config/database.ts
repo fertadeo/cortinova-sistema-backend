@@ -8,6 +8,7 @@ import { Proveedores } from '../entities/Proveedores';
 import { Sistemas } from '../entities/Sistemas';
 import { Presupuesto } from '../entities/Presupuestos';
 import dotenv from 'dotenv';
+import { Medidas } from '../entities/Medidas';
 
 
 // Determinar si estamos en modo producción o desarrollo
@@ -29,7 +30,7 @@ export const AppDataSource = new DataSource({
   database: isProduction ? process.env.DB_NAME_PROD : process.env.DB_NAME_DEV,
   synchronize: false,
   logging: false,
-  entities: [User, Clientes, Pedido, Producto, Proveedores, Sistemas, Presupuesto],
+  entities: [User, Clientes, Pedido, Producto, Proveedores, Sistemas, Presupuesto, Medidas],
 });
 
 
