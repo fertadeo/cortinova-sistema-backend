@@ -9,6 +9,10 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
 import proveedoresRoutes from './routes/proveedoresRoutes';
+import presupuestoRoutes from './routes/presupuestoRoutes';
+import sistemasRoutes from './routes/sistemasRoutes';
+import pedidoRoutes from './routes/pedidoRoutes';
+import medidasRoutes from './routes/medidasRoutes';
 
 
 
@@ -25,6 +29,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
+app.use('/api/presupuestos', presupuestoRoutes);
+app.use('/api/sistemas', sistemasRoutes);
+app.use('/api/pedidos', pedidoRoutes);
+app.use('/api/medidas', medidasRoutes);
 
 
 // Rutas adicionales
@@ -46,8 +54,10 @@ app.post('/users', async (req, res) => {
 });
 
 // Inicialización de la base de datos y arranque del servidor
-initializeDatabase().then(() => {
-  app.listen(port, () => {
-    console.log(colors.blue(`Servidor escuchando en http://localhost:${port}`));
-  });
-}).catch(error => console.log(error));
+AppDataSource.initialize()
+    .then(() => {
+        app.listen(port, () => {
+            console.log(colors.blue(`Servidor escuchando en http://localhost:${port}`));
+        });
+    })
+    .catch(error => console.log(error));

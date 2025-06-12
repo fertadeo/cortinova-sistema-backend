@@ -260,3 +260,43 @@ export const crearProducto = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Error al crear el producto' });
   }
 };
+
+export const obtenerTelas = async (req: Request, res: Response) => {
+  try {
+    const productos = await productoRepository.find({
+      where: { rubro_id: "4" },
+      relations: ['proveedor']
+    });
+
+    if (productos.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron telas disponibles' });
+    }
+
+    return res.status(200).json({ productos });
+  } catch (error) {
+    console.error('Error al obtener telas:', error);
+    return res.status(500).json({ message: 'Error al obtener telas' });
+  }
+};
+
+export const obtenerRielesYBarrales = async (req: Request, res: Response) => {
+  try {
+    const productos = await productoRepository.find({
+      where: [
+        { rubro_id: "5" }, // Rieles
+        { rubro_id: "6" }, // Barrales
+        { rubro_id: "8" }  // FLEXCOLOR
+      ],
+      relations: ['proveedor']
+    });
+
+    if (productos.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron productos disponibles' });
+    }
+
+    return res.status(200).json({ productos });
+  } catch (error) {
+    console.error('Error al obtener productos:', error);
+    return res.status(500).json({ message: 'Error al obtener productos' });
+  }
+};
