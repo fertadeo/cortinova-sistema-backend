@@ -65,4 +65,65 @@ export const getPedidos = async (req: Request, res: Response) => {
             error: error instanceof Error ? error.message : 'Error desconocido'
         });
     }
-}; 
+};
+
+// Actualizar estado y fecha de entrega del pedido
+export const actualizarEstadoYFechaEntrega = async (req: Request, res: Response) => {
+    const presupuestoId = parseInt(req.params.presupuestoId);
+    const { fechaEntrega, estado } = req.body;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        console.log('Actualizando pedido con presupuesto_id:', presupuestoId);
+
+        // Verificar que el pedido existe
+        const pedido = await queryRunner.query(`
+            SELECT * FROM pedido 
+            WHERE presupuesto_id = ?`,
+            [presupuestoId]
+        );
+
+        if (!pedido || pedido.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `No se encontró pedido con presupuesto ID ${presupuestoId}`
+            });
+        }
+
+        // Actualizar el pedido - Corregido el nombre de la columna
+        await queryRunner.query(`
+            UPDATE pedido 
+            SET 
+                estado = ?,
+                fecha_entrega = ?
+            WHERE presupuesto_id = ?`,
+            [estado, fechaEntrega, presupuestoId]
+        );
+
+        await queryRunner.commitTransaction();
+
+        res.json({
+            success: true,
+            message: 'Pedido actualizado exitosamente',
+            data: {
+                presupuestoId,
+                estado,
+                fechaEntrega
+            }
+        });
+
+    } catch (error) {
+        await queryRunner.rollbackTransaction();
+        console.error('Error al actualizar pedido:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error al actualizar el pedido',
+            error: error instanceof Error ? error.message : 'Error desconocido'
+        });
+    } finally {
+        await queryRunner.release();
+    }
+} 
