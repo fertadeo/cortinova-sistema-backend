@@ -326,5 +326,138 @@ export const presupuestoController = {
         error: error instanceof Error ? error.message : 'Error desconocido'
       });
     }
+  },
+
+  crearPresupuestoConMedidas: async (req: Request, res: Response) => {
+    const { clienteId, medidasSeleccionadas, productosAdicionales } = req.body;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+        // Log de datos recibidos
+        console.log('Datos recibidos:', {
+            clienteId,
+            medidasSeleccionadas,
+            productosAdicionales
+        });
+
+        // Validaciones
+        if (!clienteId || !medidasSeleccionadas) {
+            return res.status(400).json({
+                success: false,
+                error: 'Faltan datos requeridos (clienteId o medidasSeleccionadas)'
+            });
+        }
+
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        // 1. Verificar que el cliente existe
+        const clienteExiste = await queryRunner.query(
+            'SELECT id FROM clientes WHERE id = ?',
+            [clienteId]
+        );
+
+        if (!clienteExiste.length) {
+            return res.status(404).json({
+                success: false,
+                error: `Cliente con ID ${clienteId} no encontrado`
+            });
+        }
+
+        // 2. Verificar que las medidas existen
+        const medidasExisten = await queryRunner.query(
+            'SELECT id FROM medidas WHERE id IN (?) AND clienteId = ?',
+            [medidasSeleccionadas, clienteId]
+        );
+
+        if (medidasExisten.length !== medidasSeleccionadas.length) {
+            return res.status(404).json({
+                success: false,
+                error: 'Una o más medidas no fueron encontradas para este cliente'
+            });
+        }
+
+        // 3. Crear el presupuesto
+        const numeroPresupuesto = `PRES-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+        console.log('Creando presupuesto:', numeroPresupuesto);
+
+        const presupuestoResult = await queryRunner.query(`
+            INSERT INTO presupuestos (
+                numero_presupuesto, 
+                cliente_id, 
+                fecha, 
+                estado
+            ) VALUES (?, ?, NOW(), 'BORRADOR')`,
+            [numeroPresupuesto, clienteId]
+        );
+
+        const presupuestoId = presupuestoResult.insertId;
+        console.log('Presupuesto creado con ID:', presupuestoId);
+
+        // 4. Procesar medidas seleccionadas
+        const medidas = await queryRunner.query(`
+            SELECT * FROM medidas 
+            WHERE id IN (?) AND clienteId = ?`,
+            [medidasSeleccionadas, clienteId]
+        );
+
+        console.log('Medidas encontradas:', medidas);
+
+        for (const medida of medidas) {
+            await queryRunner.query(`
+                INSERT INTO presupuesto_items (
+                    presupuesto_id,
+                    producto_id,
+                    nombre,
+                    descripcion,
+                    cantidad,
+                    precio_unitario,
+                    subtotal,
+                    detalles
+                ) VALUES (?, NULL, ?, ?, ?, 0, 0, ?)`,
+                [
+                    presupuestoId,
+                    medida.elemento,
+                    `${medida.ancho}cm x ${medida.alto}cm - ${medida.ubicacion || ''}`,
+                    medida.cantidad,
+                    JSON.stringify({
+                        medidaId: medida.id,
+                        ubicacion: medida.ubicacion,
+                        detalles: medida.detalles,
+                        medidoPor: medida.medidoPor,
+                        fechaMedicion: medida.fechaMedicion,
+                        dimensiones: {
+                            ancho: medida.ancho,
+                            alto: medida.alto
+                        }
+                    })
+                ]
+            );
+        }
+
+        await queryRunner.commitTransaction();
+
+        res.json({
+            success: true,
+            message: 'Presupuesto creado exitosamente',
+            data: {
+                presupuestoId,
+                numeroPresupuesto,
+                itemsCreados: medidas.length
+            }
+        });
+
+    } catch (error) {
+        await queryRunner.rollbackTransaction();
+        console.error('Error detallado al crear presupuesto:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Error al crear presupuesto',
+            details: error instanceof Error ? error.message : 'Error desconocido',
+            errorCompleto: error
+        });
+    } finally {
+        await queryRunner.release();
+    }
   }
 };

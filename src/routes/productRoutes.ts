@@ -1,10 +1,11 @@
 import { Router } from 'express';
-import { actualizarPreciosPorProveedor, actualizarProducto, crearProducto, importarProductos, obtenerProductoPorId, obtenerProductosPorProveedor ,obtenerTelas,obtenerTodosLosProductos, obtenerUltimoIdProducto } from '../controllers/productController'; // Asegúrate de que el controlador esté bien importado
+import { actualizarPreciosPorProveedor, actualizarProducto, crearProducto, importarProductos, obtenerProductoPorId, obtenerProductosPorProveedor, obtenerRielesYBarrales, obtenerTelas, obtenerTodosLosProductos, obtenerUltimoIdProducto } from '../controllers/productController'; // Asegúrate de que el controlador esté bien importado
 
 const router = Router();
 
 // Ruta para importar productos desde un archivo CSV o JSON
 router.get('/telas', obtenerTelas);
+router.get('/rieles-barrales', obtenerRielesYBarrales);
 router.post('/importar-productos', importarProductos);
 router.get('/:id', obtenerProductoPorId);
 router.get('/', obtenerTodosLosProductos);
