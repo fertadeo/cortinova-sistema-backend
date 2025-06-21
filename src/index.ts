@@ -4,7 +4,7 @@ import colors from 'colors';
 import { initializeDatabase, AppDataSource } from './config/database';
 import { User } from './entities/User';
 import clientesRoutes from './routes/clientesRoutes';
-import { corsMiddleware } from './middlewares/cors';
+import corsMiddleware from './middlewares/cors';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/userRoutes';
 import productosRoutes from './routes/productRoutes';
