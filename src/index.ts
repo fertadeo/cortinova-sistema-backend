@@ -14,14 +14,20 @@ import sistemasRoutes from './routes/sistemasRoutes';
 import pedidoRoutes from './routes/pedidoRoutes';
 import medidasRoutes from './routes/medidasRoutes';
 
-
-
 const app = express();
 const port = process.env.PORT || 8081;
 
-// Middleware
-app.use(express.json());
+// Middleware de CORS debe ir PRIMERO
 app.use(corsMiddleware);
+
+// Middleware para parsing JSON
+app.use(express.json());
+
+// Middleware para logging de requests (opcional, para debugging)
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
 
 // Rutas
 app.use('/api/clientes', clientesRoutes);
@@ -33,7 +39,6 @@ app.use('/api/presupuestos', presupuestoRoutes);
 app.use('/api/sistemas', sistemasRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/medidas', medidasRoutes);
-
 
 // Rutas adicionales
 app.get('/', (req, res) => {
