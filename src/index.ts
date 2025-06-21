@@ -17,7 +17,7 @@ import medidasRoutes from './routes/medidasRoutes';
 
 
 const app = express();
-const port = 8080;
+const port = process.env.PORT || 8081;
 
 // Middleware
 app.use(express.json());
