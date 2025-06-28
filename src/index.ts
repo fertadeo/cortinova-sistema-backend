@@ -13,6 +13,7 @@ import presupuestoRoutes from './routes/presupuestoRoutes';
 import sistemasRoutes from './routes/sistemasRoutes';
 import pedidoRoutes from './routes/pedidoRoutes';
 import medidasRoutes from './routes/medidasRoutes';
+import rubrosRoutes from './routes/rubrosRoutes';
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -39,6 +40,7 @@ app.use('/api/presupuestos', presupuestoRoutes);
 app.use('/api/sistemas', sistemasRoutes);
 app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/medidas', medidasRoutes);
+app.use('/api/rubros', rubrosRoutes);
 
 // Rutas adicionales
 app.get('/', (req, res) => {

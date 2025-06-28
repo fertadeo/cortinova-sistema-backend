@@ -23,7 +23,9 @@ export const importarProductos = async (req: Request, res: Response) => {
       nuevoProducto.precio = producto.Precio;
       nuevoProducto.divisa = producto.Divisa;
       nuevoProducto.descuento = parseFloat(producto.Descuento.replace('%', ''));
-      nuevoProducto.proveedor_id = producto.proveedor_id; 
+      nuevoProducto.proveedor_id = producto.proveedor_id;
+      nuevoProducto.rubro_id = producto.rubro_id;
+      nuevoProducto.sistema_id = producto.sistema_id;
 
       console.log('Guardando producto:', nuevoProducto);
 
