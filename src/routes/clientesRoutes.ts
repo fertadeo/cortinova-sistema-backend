@@ -7,7 +7,7 @@ router.get('/clientes-por-mes', clienteController.getClientesPorMes);
 router.post('/', clienteController.createCliente);
 router.put('/:id', clienteController.updateCliente);
 router.delete('/:id', clienteController.deleteCliente);
-// router.get('/getNextClienteId', clienteController.getNextClienteId);
+router.get('/getNextClienteId', clienteController.getNextClienteId);
 router.get('/:id', clienteController.getClienteById);
 export default router;
  

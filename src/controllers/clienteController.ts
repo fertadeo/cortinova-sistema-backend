@@ -172,5 +172,28 @@ export const clienteController = {
                 message: 'Error al obtener estadísticas de clientes'
             });
         }
+    },
+
+    // Obtener próximo ID de cliente
+    getNextClienteId: async (req: Request, res: Response) => {
+        try {
+            const resultado = await clienteRepository.query(`
+                SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM clientes
+            `);
+
+            res.json({
+                success: true,
+                data: {
+                    nextId: resultado[0].next_id
+                }
+            });
+        } catch (error) {
+            console.error('Error al obtener próximo ID:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Error al obtener el próximo ID de cliente',
+                error: error instanceof Error ? error.message : 'Error desconocido'
+            });
+        }
     }
 };
