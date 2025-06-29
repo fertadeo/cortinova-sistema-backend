@@ -14,6 +14,7 @@ import sistemasRoutes from './routes/sistemasRoutes';
 import pedidoRoutes from './routes/pedidoRoutes';
 import medidasRoutes from './routes/medidasRoutes';
 import rubrosRoutes from './routes/rubrosRoutes';
+import { handleUploadError } from './middlewares/uploadError';
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -24,11 +25,42 @@ app.use(corsMiddleware);
 // Middleware para parsing JSON
 app.use(express.json());
 
-// Middleware para logging de requests (opcional, para debugging)
+// Middleware para logging detallado de requests (para debugging de precios)
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+      // console.log(`\n=== REQUEST LOGGING ===`);
+      // console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  
+  if (req.method === 'POST' || req.method === 'PUT') {
+    // console.log('Body recibido:', JSON.stringify(req.body, null, 2));
+    
+    // Logging específico para campos de precio
+    if (req.body.precio !== undefined) {
+      // console.log('Campo precio:', req.body.precio, 'Tipo:', typeof req.body.precio, 'Es NaN:', isNaN(req.body.precio));
+    }
+    if (req.body.precioCosto !== undefined) {
+      // console.log('Campo precioCosto:', req.body.precioCosto, 'Tipo:', typeof req.body.precioCosto, 'Es NaN:', isNaN(req.body.precioCosto));
+    }
+    
+    // Para importación masiva
+    if (req.body.productos && Array.isArray(req.body.productos)) {
+      // console.log('Importación masiva detectada, productos:', req.body.productos.length);
+      req.body.productos.forEach((prod: any, index: number) => {
+        if (prod['Precio al Publico'] !== undefined) {
+          // console.log(`Producto ${index} - Precio al Público:`, prod['Precio al Publico'], 'Tipo:', typeof prod['Precio al Publico']);
+        }
+        if (prod['Precio de Costo'] !== undefined) {
+          // console.log(`Producto ${index} - Precio de Costo:`, prod['Precio de Costo'], 'Tipo:', typeof prod['Precio de Costo']);
+        }
+      });
+    }
+  }
+  
+  // console.log('=== FIN REQUEST LOGGING ===\n');
   next();
 });
+
+// Agregar middleware de manejo de errores de upload
+app.use(handleUploadError);
 
 // Rutas
 app.use('/api/clientes', clientesRoutes);
