@@ -459,5 +459,160 @@ export const presupuestoController = {
     } finally {
         await queryRunner.release();
     }
+  },
+
+  // Obtener productos filtrados por sistema, rubro y proveedor para presupuestos
+  obtenerProductosParaPresupuesto: async (req: Request, res: Response) => {
+    const { sistemaId, rubroId, proveedorId } = req.query;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      // Consulta solo con los campos de la tabla producto
+      let query = `
+        SELECT 
+          id,
+          nombreProducto,
+          cantidad_stock,
+          descripcion,
+          precioCosto,
+          precio,
+          divisa,
+          disponible,
+          descuento,
+          rubro_id,
+          sistema_id,
+          proveedor_id
+        FROM producto
+        WHERE disponible = 1
+      `;
+
+      const params: any[] = [];
+
+      // Agregar filtros según los parámetros proporcionados
+      if (sistemaId) {
+        query += ` AND sistema_id = ?`;
+        params.push(sistemaId); 
+      }
+
+      if (rubroId) {
+        query += ` AND rubro_id = ?`;
+        params.push(rubroId);
+      }
+
+      if (proveedorId) {
+        query += ` AND proveedor_id = ?`;
+        params.push(proveedorId);
+      }
+
+      // Ordenar por nombre del producto
+      query += ` ORDER BY nombreProducto ASC`;
+
+      const productos = await queryRunner.query(query, params);
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        data: productos,
+        filtros: {
+          sistemaId: sistemaId || null,
+          rubroId: rubroId || null,
+          proveedorId: proveedorId || null
+        },
+        total: productos.length
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener productos para presupuesto:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al obtener productos para presupuesto",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
+  // Obtener productos excluyendo categorías específicas (telas, alfombras, arreglos)
+  obtenerProductosExcluyendoCategorias: async (req: Request, res: Response) => {
+    const { sistemaId, proveedorId, categoriasExcluir } = req.query;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      // Categorías por defecto a excluir (telas, alfombras, arreglos)
+      const categoriasPorDefecto = ['4', '7', '10']; // IDs de telas, alfombras, arreglos
+      const categoriasAExcluir = categoriasExcluir ? 
+        (Array.isArray(categoriasExcluir) ? categoriasExcluir : [categoriasExcluir]) : 
+        categoriasPorDefecto;
+
+      let query = `
+        SELECT 
+          id,
+          nombreProducto,
+          cantidad_stock,
+          descripcion,
+          precioCosto,
+          precio,
+          divisa,
+          disponible,
+          descuento,
+          rubro_id,
+          sistema_id,
+          proveedor_id
+        FROM producto
+        WHERE disponible = 1
+        AND rubro_id NOT IN (${categoriasAExcluir.map(() => '?').join(',')})
+      `;
+
+      const params: any[] = [...categoriasAExcluir];
+
+      // Agregar filtros adicionales
+      if (sistemaId) {
+        query += ` AND sistema_id = ?`;
+        params.push(sistemaId);
+      }
+
+      if (proveedorId) {
+        query += ` AND proveedor_id = ?`;
+        params.push(proveedorId);
+      }
+
+      // Ordenar por nombre del producto
+      query += ` ORDER BY nombreProducto ASC`;
+
+      const productos = await queryRunner.query(query, params);
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        data: productos,
+        filtros: {
+          sistemaId: sistemaId || null,
+          proveedorId: proveedorId || null,
+          categoriasExcluidas: categoriasAExcluir
+        },
+        total: productos.length
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener productos excluyendo categorías:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al obtener productos excluyendo categorías",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
   }
 };
