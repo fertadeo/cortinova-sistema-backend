@@ -13,4 +13,8 @@ router.post('/:id/convertir-a-pedido', presupuestoController.convertirAPresupues
 router.get('/medidas-cliente/:clienteId', medidasController.getMedidasAgrupadasByCliente);
 router.post('/crear-con-medidas', presupuestoController.crearPresupuestoConMedidas);
 
+// Nuevas rutas para obtener productos filtrados para presupuestos
+router.get('/productos-filtrados', presupuestoController.obtenerProductosParaPresupuesto);
+router.get('/productos-sin-categorias', presupuestoController.obtenerProductosExcluyendoCategorias);
+
 export default router;
