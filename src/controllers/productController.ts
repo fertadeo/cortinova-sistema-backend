@@ -318,10 +318,24 @@ export const crearProducto = async (req: Request, res: Response) => {
 
 export const obtenerTelas = async (req: Request, res: Response) => {
   try {
-    const productos = await productoRepository.find({
-      where: { rubro_id: "4" },
-      relations: ['proveedor']
-    });
+    const { q } = req.query;
+    let productos;
+
+    if (!q || (typeof q === 'string' && (q.trim() === '' || q === '*'))) {
+      // Si q es vacío o '*', devolver todas las telas
+      productos = await productoRepository.find({
+        where: { rubro_id: "4" },
+        relations: ['proveedor']
+      });
+    } else {
+      // Si q tiene texto, filtrar por nombreProducto (insensible a mayúsculas/minúsculas)
+      productos = await productoRepository
+        .createQueryBuilder('producto')
+        .where('producto.rubro_id = :rubroId', { rubroId: '4' })
+        .andWhere('LOWER(producto.nombreProducto) LIKE :nombre', { nombre: `%${(q as string).toLowerCase()}%` })
+        .leftJoinAndSelect('producto.proveedor', 'proveedor')
+        .getMany();
+    }
 
     if (productos.length === 0) {
       return res.status(404).json({ message: 'No se encontraron telas disponibles' });
