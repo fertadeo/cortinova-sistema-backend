@@ -463,14 +463,14 @@ export const presupuestoController = {
 
   // Obtener productos filtrados por sistema, rubro y proveedor para presupuestos
   obtenerProductosParaPresupuesto: async (req: Request, res: Response) => {
-    const { sistemaId, rubroId, proveedorId } = req.query;
+    const { sistemaId, rubroId, proveedorId, q } = req.query;
     const queryRunner = AppDataSource.createQueryRunner();
 
     try {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      // Consulta solo con los campos de la tabla producto
+      // Consulta base
       let query = `
         SELECT 
           id,
@@ -491,20 +491,35 @@ export const presupuestoController = {
 
       const params: any[] = [];
 
-      // Agregar filtros según los parámetros proporcionados
+      // Filtros
       if (sistemaId) {
         query += ` AND sistema_id = ?`;
         params.push(sistemaId); 
       }
 
+      // Permitir múltiples rubros separados por coma
+      let rubroIds: string[] = [];
       if (rubroId) {
-        query += ` AND rubro_id = ?`;
-        params.push(rubroId);
+        if (typeof rubroId === 'string') {
+          rubroIds = rubroId.split(',').map((id) => id.trim()).filter(Boolean);
+        } else if (Array.isArray(rubroId)) {
+          rubroIds = rubroId.map((id) => String(id));
+        }
+        if (rubroIds.length > 0) {
+          query += ` AND rubro_id IN (${rubroIds.map(() => '?').join(',')})`;
+          params.push(...rubroIds);
+        }
       }
 
       if (proveedorId) {
         query += ` AND proveedor_id = ?`;
         params.push(proveedorId);
+      } 
+
+      // Filtro por nombre (q)
+      if (q && typeof q === 'string' && q.trim() !== '' && q !== '*') {
+        query += ` AND LOWER(nombreProducto) LIKE ?`;
+        params.push(`%${q.toLowerCase()}%`);
       }
 
       // Ordenar por nombre del producto
@@ -520,7 +535,8 @@ export const presupuestoController = {
         filtros: {
           sistemaId: sistemaId || null,
           rubroId: rubroId || null,
-          proveedorId: proveedorId || null
+          proveedorId: proveedorId || null,
+          q: q || null
         },
         total: productos.length
       });
