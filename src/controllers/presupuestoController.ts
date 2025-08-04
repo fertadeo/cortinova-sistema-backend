@@ -46,6 +46,8 @@ export const presupuestoController = {
           p.id,
           p.numero_presupuesto,
           p.fecha,
+          p.subtotal,
+          p.descuento,
           p.total,
           c.nombre as cliente_nombre,
           c.telefono as cliente_telefono,
@@ -98,21 +100,40 @@ export const presupuestoController = {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      // Calcular el total basado en los productos
-      const total = presupuestoData.productos.reduce((sum: number, producto: any) => {
+      // Calcular el subtotal basado en los productos (suma de todos los productos sin descuento)
+      const subtotal = presupuestoData.productos.reduce((sum: number, producto: any) => {
         return sum + (producto.cantidad * producto.precioUnitario);
       }, 0);
 
-      // Asignar el total calculado
+      // Obtener el descuento del request (porcentaje o monto fijo)
+      const descuentoPorcentaje = presupuestoData.descuentoPorcentaje || 0;
+      const descuentoMonto = presupuestoData.descuentoMonto || 0;
+      
+      // Calcular el descuento
+      let descuento = 0;
+      if (descuentoPorcentaje > 0) {
+        descuento = (subtotal * descuentoPorcentaje) / 100;
+      } else if (descuentoMonto > 0) {
+        descuento = descuentoMonto;
+      }
+
+      // Calcular el total final (subtotal - descuento = monto a cobrar)
+      const total = subtotal - descuento;
+
+      // Actualizar los datos del presupuesto
+      presupuestoData.subtotal = subtotal;
+      presupuestoData.descuento = descuento;
       presupuestoData.total = total;
 
       const presupuestoResult = await queryRunner.query(`
-        INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, total, presupuesto_json)
-        VALUES (?, ?, ?, ?, ?)`,
+        INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, subtotal, descuento, total, presupuesto_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           presupuestoData.numeroPresupuesto,
           presupuestoData.clienteId,
           new Date(),
+          subtotal,
+          descuento,
           total,
           JSON.stringify(presupuestoData)
         ]
@@ -192,6 +213,8 @@ export const presupuestoController = {
           p.id,
           p.numero_presupuesto,
           p.fecha,
+          p.subtotal,
+          p.descuento,
           p.total,
           c.id as cliente_id,
           c.nombre as cliente_nombre,
@@ -625,6 +648,145 @@ export const presupuestoController = {
       res.status(500).json({
         success: false,
         error: "Error al obtener productos excluyendo categorías",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
+  // Actualizar presupuesto con descuento
+  updatePresupuestoConDescuento: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { descuentoPorcentaje, descuentoMonto } = req.body;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      // Obtener el presupuesto actual
+      const presupuesto = await queryRunner.query(`
+        SELECT * FROM presupuestos WHERE id = ?`, [id]);
+
+      if (!presupuesto.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      const presupuestoActual = presupuesto[0];
+      const presupuestoJson = JSON.parse(presupuestoActual.presupuesto_json);
+
+      // Calcular el nuevo descuento
+      let nuevoDescuento = 0;
+      if (descuentoPorcentaje > 0) {
+        nuevoDescuento = (presupuestoActual.subtotal * descuentoPorcentaje) / 100;
+      } else if (descuentoMonto > 0) {
+        nuevoDescuento = descuentoMonto;
+      }
+
+      // Calcular el nuevo total (subtotal - descuento = monto a cobrar)
+      const nuevoTotal = presupuestoActual.subtotal - nuevoDescuento;
+
+      // Actualizar el JSON del presupuesto
+      presupuestoJson.descuento = nuevoDescuento;
+      presupuestoJson.subtotal = presupuestoActual.subtotal;
+      presupuestoJson.total = nuevoTotal;
+
+      // Actualizar el presupuesto en la base de datos
+      await queryRunner.query(`
+        UPDATE presupuestos 
+        SET descuento = ?, total = ?, presupuesto_json = ?
+        WHERE id = ?`,
+        [nuevoDescuento, nuevoTotal, JSON.stringify(presupuestoJson), id]
+      );
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        message: 'Presupuesto actualizado con descuento exitosamente',
+        data: {
+          id: parseInt(id),
+          subtotal: presupuestoActual.subtotal,
+          descuento: nuevoDescuento,
+          total: nuevoTotal
+        }
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al actualizar presupuesto con descuento:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al actualizar presupuesto con descuento",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
+  // Obtener presupuesto por ID con detalles completos
+  getPresupuestoById: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      const presupuesto = await queryRunner.query(`
+        SELECT 
+          p.*,
+          c.nombre as cliente_nombre,
+          c.telefono as cliente_telefono,
+          c.email as cliente_email
+        FROM presupuestos p
+        JOIN clientes c ON p.cliente_id = c.id
+        WHERE p.id = ?`, [id]);
+
+      if (!presupuesto.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      const presupuestoData = presupuesto[0];
+      const items = await queryRunner.query(`
+        SELECT 
+          pi.id,
+          pi.nombre,
+          pi.descripcion,
+          pi.cantidad,
+          pi.precio_unitario,
+          pi.subtotal,
+          pi.detalles
+        FROM presupuesto_items pi
+        WHERE pi.presupuesto_id = ?`, [id]);
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        data: {
+          ...presupuestoData,
+          items: items.map((item: any) => ({
+            ...item,
+            detalles: JSON.parse(item.detalles || '{}')
+          }))
+        }
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener presupuesto por ID:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al obtener presupuesto por ID",
         details: error instanceof Error ? error.message : 'Error desconocido'
       });
     } finally {
