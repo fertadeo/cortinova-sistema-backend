@@ -100,30 +100,11 @@ export const presupuestoController = {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      // Calcular el subtotal basado en los productos (suma de todos los productos sin descuento)
-      const subtotal = presupuestoData.productos.reduce((sum: number, producto: any) => {
-        return sum + (producto.cantidad * producto.precioUnitario);
-      }, 0);
-
-      // Obtener el descuento del request (porcentaje o monto fijo)
-      const descuentoPorcentaje = presupuestoData.descuentoPorcentaje || 0;
-      const descuentoMonto = presupuestoData.descuentoMonto || 0;
-      
-      // Calcular el descuento
-      let descuento = 0;
-      if (descuentoPorcentaje > 0) {
-        descuento = (subtotal * descuentoPorcentaje) / 100;
-      } else if (descuentoMonto > 0) {
-        descuento = descuentoMonto;
-      }
-
-      // Calcular el total final (subtotal - descuento = monto a cobrar)
-      const total = subtotal - descuento;
-
-      // Actualizar los datos del presupuesto
-      presupuestoData.subtotal = subtotal;
-      presupuestoData.descuento = descuento;
-      presupuestoData.total = total;
+      // USAR LOS VALORES EXACTOS QUE ENVÍA EL FRONTEND
+      // En lugar de recalcular, usar los valores que ya vienen calculados
+      const subtotal = presupuestoData.subtotal || 0;
+      const descuento = presupuestoData.descuento || 0;
+      const total = presupuestoData.total || 0;
 
       const presupuestoResult = await queryRunner.query(`
         INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, subtotal, descuento, total, presupuesto_json)
@@ -192,7 +173,7 @@ export const presupuestoController = {
       console.error("Error al crear presupuesto:", error);
       res.status(500).json({ 
         success: false, 
-        error: "Error al crear el presupuesto",
+        error: "Error al crear presupuesto",
         details: error instanceof Error ? error.message : 'Error desconocido'
       });
     } finally {
