@@ -173,6 +173,31 @@ export const obtenerProductosPorProveedor = async (req: Request, res: Response) 
   }
 };
 
+export const obtenerProductosPorRubro = async (req: Request, res: Response) => {
+  const { rubro_id } = req.params;
+
+  if (!rubro_id) {
+    return res.status(400).json({ message: 'ID de rubro requerido' });
+  }
+
+  try {
+    // Buscar productos por rubro
+    const productos = await productoRepository.find({
+      where: { rubro_id: rubro_id },
+      relations: ['proveedor'],
+    });
+
+    if (productos.length === 0) {
+      return res.status(404).json({ message: 'No se encontraron productos para el rubro especificado' });
+    }
+
+    return res.status(200).json({ productos });
+  } catch (error) {
+    console.error('Error al obtener productos por rubro:', error);
+    return res.status(500).json({ message: 'Error al obtener productos por rubro' });
+  }
+};
+
 // Nueva función para obtener el último ID de los productos
 export const obtenerUltimoIdProducto = async (req: Request, res: Response) => {
   try {
@@ -270,6 +295,44 @@ export const actualizarPreciosPorProveedor = async (req: Request, res: Response)
   } catch (error) {
     console.error('Error al actualizar precios:', error);
     return res.status(500).json({ message: 'Error al actualizar precios' });
+  }
+};
+
+export const actualizarPreciosPorRubro = async (req: Request, res: Response) => {
+  const productosActualizados = req.body;
+
+  if (!Array.isArray(productosActualizados)) {
+    return res.status(400).json({ message: 'Se esperaba un array de productos para actualizar' });
+  }
+
+  try {
+    for (const productoActualizado of productosActualizados) {
+      const { id, Precio } = productoActualizado;
+
+      // Validar que el producto tenga un ID y un precio válido
+      if (!id || typeof Precio !== 'string') {
+        continue;
+      }
+
+      // Buscar el producto por ID
+      const producto = await productoRepository.findOne({ where: { id } });
+
+      if (!producto) {
+        continue;
+      }
+
+      // Validar y actualizar el precio del producto
+      const precioValidado = validarPrecio(Precio, `Actualizar Precios por Rubro - ID ${id}`);
+      producto.precio = precioValidado;
+
+      // Guardar los cambios en la base de datos
+      await productoRepository.save(producto);
+    }
+
+    return res.status(200).json({ message: 'Precios actualizados correctamente por rubro' });
+  } catch (error) {
+    console.error('Error al actualizar precios por rubro:', error);
+    return res.status(500).json({ message: 'Error al actualizar precios por rubro' });
   }
 };
 
