@@ -49,6 +49,7 @@ export const presupuestoController = {
           p.subtotal,
           p.descuento,
           p.total,
+          p.presupuesto_json,
           c.nombre as cliente_nombre,
           c.telefono as cliente_telefono,
           c.email as cliente_email
@@ -70,8 +71,13 @@ export const presupuestoController = {
             FROM presupuesto_items pi
             WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
 
+          // Parsear el presupuesto_json si existe
+          const presupuestoJson = presupuesto.presupuesto_json ? 
+            JSON.parse(presupuesto.presupuesto_json) : null;
+
           return {
             ...presupuesto,
+            presupuesto_json: presupuestoJson,
             items: items.map((item: any) => ({
               ...item,
               detalles: JSON.parse(item.detalles || '{}')
@@ -197,6 +203,7 @@ export const presupuestoController = {
           p.subtotal,
           p.descuento,
           p.total,
+          p.presupuesto_json,
           c.id as cliente_id,
           c.nombre as cliente_nombre,
           c.telefono as cliente_telefono,
@@ -219,8 +226,13 @@ export const presupuestoController = {
             FROM presupuesto_items pi
             WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
 
+          // Parsear el presupuesto_json si existe
+          const presupuestoJson = presupuesto.presupuesto_json ? 
+            JSON.parse(presupuesto.presupuesto_json) : null;
+
           return {
             ...presupuesto,
+            presupuesto_json: presupuestoJson,
             items: items.map((item: any) => ({
               ...item,
               detalles: JSON.parse(item.detalles || '{}')
@@ -751,10 +763,15 @@ export const presupuestoController = {
 
       await queryRunner.commitTransaction();
 
+      // Parsear el presupuesto_json si existe
+      const presupuestoJson = presupuestoData.presupuesto_json ? 
+        JSON.parse(presupuestoData.presupuesto_json) : null;
+
       res.json({
         success: true,
         data: {
           ...presupuestoData,
+          presupuesto_json: presupuestoJson,
           items: items.map((item: any) => ({
             ...item,
             detalles: JSON.parse(item.detalles || '{}')
@@ -768,6 +785,117 @@ export const presupuestoController = {
       res.status(500).json({
         success: false,
         error: "Error al obtener presupuesto por ID",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
+  // Obtener solo el dato Espacio de un presupuesto específico
+  getEspacioPresupuesto: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      const presupuesto = await queryRunner.query(`
+        SELECT 
+          p.id,
+          p.numero_presupuesto,
+          p.presupuesto_json
+        FROM presupuestos p
+        WHERE p.id = ?`, [id]);
+
+      if (!presupuesto.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      const presupuestoData = presupuesto[0];
+      
+      // Parsear el presupuesto_json si existe
+      const presupuestoJson = presupuestoData.presupuesto_json ? 
+        JSON.parse(presupuestoData.presupuesto_json) : null;
+
+      // Extraer solo el dato Espacio
+      const espacio = presupuestoJson?.Espacio || null;
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        data: {
+          id: presupuestoData.id,
+          numeroPresupuesto: presupuestoData.numero_presupuesto,
+          espacio: espacio
+        }
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener espacio del presupuesto:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al obtener espacio del presupuesto",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
+  // Obtener el dato Espacio de todos los presupuestos de un cliente
+  getEspaciosPresupuestosByCliente: async (req: Request, res: Response) => {
+    const clienteId = req.params.clienteId;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      const presupuestos = await queryRunner.query(`
+        SELECT 
+          p.id,
+          p.numero_presupuesto,
+          p.fecha,
+          p.presupuesto_json
+        FROM presupuestos p
+        WHERE p.cliente_id = ?`, [clienteId]);
+
+      const presupuestosConEspacio = presupuestos.map((presupuesto: any) => {
+        // Parsear el presupuesto_json si existe
+        const presupuestoJson = presupuesto.presupuesto_json ? 
+          JSON.parse(presupuesto.presupuesto_json) : null;
+
+        // Extraer solo el dato Espacio
+        const espacio = presupuestoJson?.Espacio || null;
+
+        return {
+          id: presupuesto.id,
+          numeroPresupuesto: presupuesto.numero_presupuesto,
+          fecha: presupuesto.fecha,
+          espacio: espacio
+        };
+      });
+
+      await queryRunner.commitTransaction();
+
+      res.json({
+        success: true,
+        data: presupuestosConEspacio
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener espacios de presupuestos:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al obtener espacios de presupuestos",
         details: error instanceof Error ? error.message : 'Error desconocido'
       });
     } finally {
