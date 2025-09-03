@@ -25,4 +25,17 @@ export class Presupuesto {
 
     @Column("json")
     presupuesto_json!: any;
+
+    // Nuevas columnas para motorización
+    @Column("boolean", { default: false })
+    incluirMotorizacion!: boolean;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    precioMotorizacion!: number;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    subtotal!: number;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0 })
+    descuento!: number;
 }

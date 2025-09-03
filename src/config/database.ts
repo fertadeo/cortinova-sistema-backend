@@ -10,6 +10,10 @@ import { Presupuesto } from '../entities/Presupuestos';
 import dotenv from 'dotenv';
 import { Medidas } from '../entities/Medidas';
 import { Rubro } from '../entities/Rubro';
+import { NotificationSettings } from '../entities/NotificationSettings';
+import { PushSubscription } from '../entities/PushSubscription';
+import { Notification } from '../entities/Notifications';
+import { NotificationReadStatus } from '../entities/NotificationReadStatus';
 
 
 // Determinar si estamos en modo producción o desarrollo
@@ -31,7 +35,21 @@ export const AppDataSource = new DataSource({
   database: isProduction ? process.env.DB_NAME_PROD : process.env.DB_NAME_DEV,
   synchronize: false,
   logging: false,
-  entities: [User, Clientes, Pedido, Producto, Proveedores, Sistemas, Presupuesto, Medidas, Rubro],
+  entities: [
+    User, 
+    Clientes, 
+    Pedido, 
+    Producto, 
+    Proveedores, 
+    Sistemas, 
+    Presupuesto, 
+    Medidas, 
+    Rubro, 
+    NotificationSettings, 
+    PushSubscription,
+    Notification,
+    NotificationReadStatus
+  ],
 });
 
 
