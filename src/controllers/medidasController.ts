@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { AppDataSource } from '../config/database';
 import { Medidas } from '../entities/Medidas';
+import { Clientes } from '../entities/Clientes';
+import { NotificationService } from '../services/NotificationService';
+import { NotificationType, NotificationPriority } from '../entities/Notifications';
 
 export const medidasController = {
   // Obtener todas las medidas
@@ -125,13 +128,69 @@ export const medidasController = {
   createMedida: async (req: Request, res: Response) => {
     try {
       const medidasRepository = AppDataSource.getRepository(Medidas);
+      const clientesRepository = AppDataSource.getRepository(Clientes);
+      
+      // Crear y guardar la medida
       const nuevaMedida = medidasRepository.create(req.body);
-      const resultado = await medidasRepository.save(nuevaMedida);
+      const resultado = await medidasRepository.save(nuevaMedida) as any;
+      
+      // Verificar que se guardó correctamente
+      if (!resultado || !resultado.id) {
+        throw new Error('No se pudo crear la medida correctamente');
+      }
+      
+      console.log('📏 Nueva medida creada:', resultado.id);
+      
+      // Obtener información del cliente para la notificación
+      let clienteInfo = null;
+      if (resultado.clienteId) {
+        try {
+          clienteInfo = await clientesRepository.findOne({ 
+            where: { id: resultado.clienteId } 
+          });
+        } catch (clienteError) {
+          console.log('⚠️ No se pudo obtener información del cliente:', clienteError);
+        }
+      }
+      
+      // Crear notificación automática
+      try {
+        const notificationService = new NotificationService();
+        
+        const notificationData = {
+          type: NotificationType.NUEVA_MEDIDA,
+          title: 'Nueva Medida Tomada',
+          message: `Se han tomado nuevas medidas${clienteInfo ? ` para ${clienteInfo.nombre}` : ''}`,
+          priority: NotificationPriority.MEDIUM,
+          action_url: `/medidas/${resultado.id}`,
+          action_text: 'Ver Medida',
+          metadata: {
+            medida_id: resultado.id,
+            cliente_id: resultado.clienteId,
+            cliente_nombre: clienteInfo?.nombre || 'Cliente no identificado',
+            elemento: resultado.elemento,
+            ubicacion: resultado.ubicacion,
+            medido_por: resultado.medidoPor,
+            fecha_medicion: resultado.fechaMedicion
+          }
+        };
+        
+        const notification = await notificationService.createNotification(notificationData);
+        console.log('🔔 Notificación automática creada:', notification.id);
+        
+      } catch (notificationError) {
+        console.error('❌ Error al crear notificación automática:', notificationError);
+        // No fallar la creación de la medida si falla la notificación
+      }
       
       res.status(201).json({ 
         success: true, 
         data: resultado,
-        message: 'Medida creada exitosamente'
+        message: 'Medida creada exitosamente',
+        notification: {
+          success: true,
+          message: 'Notificación automática enviada'
+        }
       });
     } catch (error) {
       console.error('Error al crear medida:', error);

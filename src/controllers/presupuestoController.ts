@@ -5,6 +5,7 @@ import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import { Presupuesto as PresupuestoEntity } from '../entities/Presupuestos';
 import { Pedido } from '../entities/Pedido';
 import { PedidoEstado } from '../entities/enums/PedidoEstado';
+import { NotificationService } from '../services/NotificationService';
 
 interface Presupuesto {
   numeroPresupuesto: string;
@@ -30,6 +31,9 @@ interface Presupuesto {
   }>;
   total: number;
 }
+
+// Instancia del servicio de notificaciones
+const notificationService = new NotificationService();
 
 export const presupuestoController = {
   // Obtener presupuestos por ID de cliente
@@ -107,14 +111,34 @@ export const presupuestoController = {
       await queryRunner.startTransaction();
 
       // USAR LOS VALORES EXACTOS QUE ENVÍA EL FRONTEND
-      // En lugar de recalcular, usar los valores que ya vienen calculados
       const subtotal = presupuestoData.subtotal || 0;
       const descuento = presupuestoData.descuento || 0;
       const total = presupuestoData.total || 0;
 
+      // Calcular valores de motorización
+      let incluirMotorizacion = false;
+      let precioTotalMotorizacion = 0;
+
+      presupuestoData.productos.forEach((producto: any) => {
+        if (producto.incluirMotorizacion) {
+          incluirMotorizacion = true;
+          precioTotalMotorizacion += (producto.precioMotorizacion || 0) * (producto.cantidad || 1);
+        }
+      });
+
       const presupuestoResult = await queryRunner.query(`
-        INSERT INTO presupuestos (numero_presupuesto, cliente_id, fecha, subtotal, descuento, total, presupuesto_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        INSERT INTO presupuestos (
+          numero_presupuesto, 
+          cliente_id, 
+          fecha, 
+          subtotal, 
+          descuento, 
+          total, 
+          presupuesto_json,
+          incluirMotorizacion,
+          precioMotorizacion
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           presupuestoData.numeroPresupuesto,
           presupuestoData.clienteId,
@@ -122,7 +146,9 @@ export const presupuestoController = {
           subtotal,
           descuento,
           total,
-          JSON.stringify(presupuestoData)
+          JSON.stringify(presupuestoData),
+          incluirMotorizacion,
+          precioTotalMotorizacion
         ]
       );
 
@@ -149,6 +175,19 @@ export const presupuestoController = {
             );
           } else {
             // Para productos personalizados (cortinas)
+            const detallesCompletos = {
+              ...producto.detalles,
+              espacio: producto.espacio,
+              incluirMotorizacion: producto.incluirMotorizacion,
+              precioMotorizacion: producto.precioMotorizacion,
+              tipoTela: producto.tipoTela,
+              tipoApertura: producto.tipoApertura,
+              colorSistema: producto.colorSistema,
+              ladoComando: producto.ladoComando,
+              ladoApertura: producto.ladoApertura,
+              detalle: producto.detalle
+            };
+            
             return queryRunner.query(`
               INSERT INTO presupuesto_items 
               (presupuesto_id, producto_id, nombre, descripcion, cantidad, precio_unitario, subtotal, detalles)
@@ -160,7 +199,7 @@ export const presupuestoController = {
                 producto.cantidad,
                 producto.precioUnitario,
                 producto.subtotal,
-                JSON.stringify(producto.detalles || {})
+                JSON.stringify(detallesCompletos)
               ]
             );
           }
@@ -168,9 +207,34 @@ export const presupuestoController = {
       );
 
       await queryRunner.commitTransaction();
+
+      // 🎯 EJEMPLO: Enviar notificación de presupuesto creado
+      try {
+        const user_id = (req as any).user_id; // Extraído del middleware de autenticación
+        
+        // Obtener información del cliente para la notificación
+        const cliente = await queryRunner.query(`
+          SELECT nombre, email FROM clientes WHERE id = ?
+        `, [presupuestoData.clienteId]);
+
+        if (cliente.length > 0) {
+          await notificationService.notifySistema(
+            user_id,
+            `Presupuesto Creado #${presupuestoData.numeroPresupuesto}`,
+            `Presupuesto creado exitosamente para ${cliente[0].nombre} por $${total.toFixed(2)}`,
+            `/presupuestos/${presupuestoId}`
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error al enviar notificación:', notificationError);
+        // No fallar la operación principal por un error de notificación
+      }
+
       res.status(201).json({ 
         success: true, 
         presupuestoId,
+        incluirMotorizacion,
+        precioTotalMotorizacion,
         message: "Presupuesto creado exitosamente" 
       });
 
