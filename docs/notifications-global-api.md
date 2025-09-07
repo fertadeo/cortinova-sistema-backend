@@ -7,6 +7,7 @@
 - **Sin Autenticación**: Los endpoints de lectura no requieren bearer token
 - **Tiempo Real**: SSE para notificaciones en vivo
 - **Push Notifications**: Soporte para PWA
+- **🎵 Sonidos**: Audio automático según prioridad de notificación
 
 ## **🔗 Endpoints PÚBLICOS (Sin Autenticación)**
 
@@ -70,13 +71,13 @@ data: {
   "message": "Se ha registrado una nueva medida para el cliente Carlos López",
   "priority": "medium",
   "action_url": "/presupuestos/nuevo?medida_id=789",
-      "action_text": "Crear Presupuesto",
-      "metadata": {
-        "medida_id": 789,
-        "cliente_id": 123,
-        "cliente_nombre": "Carlos López"
-      }
-    }
+  "action_text": "Crear Presupuesto",
+  "metadata": {
+    "medida_id": 789,
+    "cliente_id": 123,
+    "cliente_nombre": "Carlos López"
+  }
+}
 ```
 
 ## **📖 Endpoints de Estado de Lectura (SIN Autenticación)**
@@ -164,9 +165,92 @@ POST /api/notifications/{user_id}/push/subscribe
 Authorization: Bearer {token}
 ```
 
-## **🎯 Código JavaScript para el Frontend (Sin Autenticación)**
+## **🎵 Implementación del Sonido**
 
-### **1. Conectar al Stream SSE (Tiempo Real)**
+### **1. Servicio de Audio (AudioService.ts)**
+
+```typescript
+export class AudioService {
+  private audioContext: AudioContext | null = null;
+  private audioBuffers: Map<string, AudioBuffer> = new Map();
+  private isEnabled: boolean = true;
+  private volume: number = 0.5;
+
+  constructor() {
+    this.initializeAudio();
+  }
+
+  // Reproducir sonido según prioridad
+  async playNotificationSound(priority: string = 'medium'): Promise<void> {
+    if (!this.isEnabled || !this.audioContext) return;
+
+    let soundName = 'notification';
+    
+    switch (priority) {
+      case 'urgent':
+      case 'high':
+        soundName = 'alert';
+        break;
+      case 'medium':
+        soundName = 'notification';
+        break;
+      case 'low':
+        soundName = 'success';
+        break;
+    }
+
+    // Reproducir sonido
+    const audioBuffer = this.audioBuffers.get(soundName);
+    if (audioBuffer) {
+      const source = this.audioContext.createBufferSource();
+      const gainNode = this.audioContext.createGain();
+      
+      source.buffer = audioBuffer;
+      source.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      gainNode.gain.value = this.volume;
+      
+      source.start(0);
+    }
+  }
+
+  // Fallback: beep simple
+  playBeep(frequency: number = 800, duration: number = 200): void {
+    if (!this.isEnabled || !this.audioContext) return;
+
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'sine';
+
+    gainNode.gain.setValueAtTime(this.volume, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration / 1000);
+
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration / 1000);
+  }
+}
+```
+
+### **2. Archivos de Sonido Requeridos**
+
+Crear la carpeta `public/sounds/` con estos archivos:
+```
+public/
+└── sounds/
+    ├── notification.mp3    # Sonido por defecto
+    ├── alert.mp3          # Para prioridad alta/urgente
+    ├── success.mp3        # Para prioridad baja
+    └── warning.mp3        # Para advertencias
+```
+
+## **🎯 Código JavaScript Completo para el Frontend (Con Sonido)**
+
+### **1. Servicio de Notificaciones con Audio**
 
 ```javascript
 class NotificationService {
@@ -174,6 +258,8 @@ class NotificationService {
     this.eventSource = null;
     this.isConnected = false;
     this.tempUserId = null;
+    this.audioService = new AudioService();
+    this.soundEnabled = true;
   }
 
   // Conectar al stream SSE
@@ -190,6 +276,9 @@ class NotificationService {
       
       // Mostrar notificación en tiempo real
       this.showNotification(notification);
+      
+      // Reproducir sonido
+      this.playNotificationSound(notification.priority);
       
       // Actualizar contador de notificaciones no leídas
       this.updateNotificationCount();
@@ -209,6 +298,20 @@ class NotificationService {
         this.connectToStream();
       }, 5000);
     });
+  }
+
+  // Reproducir sonido de notificación
+  async playNotificationSound(priority = 'medium') {
+    if (!this.soundEnabled) return;
+
+    try {
+      // Intentar reproducir sonido personalizado
+      await this.audioService.playNotificationSound(priority);
+    } catch (error) {
+      console.warn('Error al reproducir sonido personalizado, usando beep:', error);
+      // Fallback: beep simple
+      this.audioService.playBeep();
+    }
   }
 
   // Obtener notificaciones
@@ -387,11 +490,26 @@ class NotificationService {
     }
   }
 
+  // Configurar sonido
+  setSoundEnabled(enabled) {
+    this.soundEnabled = enabled;
+    this.audioService.setEnabled(enabled);
+    console.log(`🔊 Sonido ${enabled ? 'habilitado' : 'deshabilitado'}`);
+  }
+
+  // Configurar volumen
+  setVolume(volume) {
+    this.audioService.setVolume(volume);
+  }
+
   // Desconectar
   disconnect() {
     if (this.eventSource) {
       this.eventSource.close();
       this.isConnected = false;
+    }
+    if (this.audioService) {
+      this.audioService.dispose();
     }
   }
 }
@@ -473,8 +591,233 @@ window.markGlobalAsRead = function() {
   notificationService.markGlobalAsRead();
 };
 
+// Controles de audio
+window.toggleSound = function() {
+  const soundButton = document.getElementById('sound-toggle');
+  const isEnabled = soundButton.textContent.includes('🔊');
+  notificationService.setSoundEnabled(!isEnabled);
+  soundButton.textContent = isEnabled ? '🔇' : '🔊';
+};
+
+window.setVolume = function(volume) {
+  notificationService.setVolume(volume / 100);
+};
+
 // Cargar notificaciones al cargar la página
 document.addEventListener('DOMContentLoaded', loadNotifications);
+```
+
+### **3. HTML con Controles de Audio**
+
+```html
+<!-- Componente de notificaciones con controles de audio -->
+<div class="notifications-container">
+  <div class="notifications-header">
+    <h3>Notificaciones</h3>
+    <div class="notification-actions">
+      <button onclick="markAllAsRead()" class="btn btn-sm btn-secondary">
+        Marcar todas como leídas
+      </button>
+      <button onclick="markGlobalAsRead()" class="btn btn-sm btn-info">
+        Marcar globales como leídas
+      </button>
+      <button id="sound-toggle" onclick="toggleSound()" class="btn btn-sm btn-outline-primary">
+        🔊
+      </button>
+      <input type="range" min="0" max="100" value="50" onchange="setVolume(this.value)" 
+             class="volume-slider" title="Volumen">
+      <span id="notification-badge" class="badge badge-danger">0</span>
+    </div>
+  </div>
+  
+  <div id="notification-list" class="notification-list">
+    <!-- Las notificaciones se cargarán aquí dinámicamente -->
+  </div>
+</div>
+
+<!-- CSS para controles de audio -->
+<style>
+.notifications-container {
+  max-width: 400px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+}
+
+.notification-item {
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.notification-item:hover {
+  background-color: #f8f9fa;
+}
+
+.notification-item.unread {
+  background-color: #e3f2fd;
+  border-left: 4px solid #2196f3;
+}
+
+.notification-item.read {
+  opacity: 0.7;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #dc3545;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.volume-slider {
+  width: 80px;
+  margin: 0 10px;
+}
+
+.notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+</style>
+```
+
+## **🚀 Ejemplo de POST para Crear Medida (Frontend)**
+
+### **1. Formulario HTML para Medida**
+
+```html
+<form id="medidaForm" class="medida-form">
+  <div class="form-group">
+    <label for="cliente_nombre">Nombre del Cliente</label>
+    <input type="text" id="cliente_nombre" name="cliente_nombre" required>
+  </div>
+  
+  <div class="form-group">
+    <label for="elemento">Elemento a Medir</label>
+    <select id="elemento" name="elemento" required>
+      <option value="">Seleccionar elemento</option>
+      <option value="cortina_roller">Cortina Roller</option>
+      <option value="cortina_venetiana">Cortina Veneciana</option>
+      <option value="cortina_blackout">Cortina Blackout</option>
+      <option value="cortina_screen">Cortina Screen</option>
+    </select>
+  </div>
+  
+  <div class="form-group">
+    <label for="ubicacion">Ubicación</label>
+    <input type="text" id="ubicacion" name="ubicacion" placeholder="Ej: Sala de estar">
+  </div>
+  
+  <div class="form-group">
+    <label for="medido_por">Medido por</label>
+    <input type="text" id="medido_por" name="medido_por" placeholder="Tu nombre">
+  </div>
+  
+  <button type="submit" class="btn btn-primary">Registrar Medida</button>
+</form>
+```
+
+### **2. JavaScript para Enviar Medida**
+
+```javascript
+// Manejar envío del formulario de medida
+document.getElementById('medidaForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const formData = new FormData(this);
+  const medidaData = {
+    cliente_nombre: formData.get('cliente_nombre'),
+    elemento: formData.get('elemento'),
+    ubicacion: formData.get('ubicacion'),
+    medido_por: formData.get('medido_por')
+  };
+
+  try {
+    console.log('📏 Enviando medida:', medidaData);
+    
+    const response = await fetch('/api/notifications/medida', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(medidaData)
+    });
+
+    const result = await response.json();
+    
+    if (result.success) {
+      // Mostrar mensaje de éxito
+      showSuccess('Medida registrada exitosamente');
+      
+      // La notificación se enviará automáticamente desde el backend
+      // y llegará via SSE a todos los usuarios conectados
+      // El sonido se reproducirá automáticamente
+      
+      // Limpiar formulario
+      this.reset();
+      
+      // Redirigir o mostrar confirmación
+      showNotification({
+        title: 'Medida Registrada',
+        message: `Se ha registrado la medida para ${medidaData.cliente_nombre}`,
+        type: 'success'
+      });
+      
+    } else {
+      showError('Error al registrar la medida: ' + result.error);
+    }
+  } catch (error) {
+    console.error('Error al enviar medida:', error);
+    showError('Error de conexión al registrar la medida');
+  }
+});
+
+// Funciones de utilidad para mostrar mensajes
+function showSuccess(message) {
+  if (window.Toastify) {
+    Toastify({
+      text: message,
+      duration: 3000,
+      gravity: "top",
+      position: "right",
+      backgroundColor: "#28a745"
+    }).showToast();
+  } else {
+    alert('✅ ' + message);
+  }
+}
+
+function showError(message) {
+  if (window.Toastify) {
+    Toastify({
+      text: message,
+      duration: 5000,
+      gravity: "top",
+      position: "right",
+      backgroundColor: "#dc3545"
+    }).showToast();
+  } else {
+    alert('❌ ' + message);
+  }
+}
+
+function showNotification(notification) {
+  if (window.Toastify) {
+    Toastify({
+      text: notification.message,
+      duration: 4000,
+      gravity: "top",
+      position: "right",
+      backgroundColor: notification.type === 'success' ? "#28a745" : "#ffc107"
+    }).showToast();
+  }
+}
 ```
 
 ## **🧪 Prueba los Endpoints (Sin Autenticación)**
@@ -497,13 +840,13 @@ curl -X PATCH \
   http://localhost:3000/api/notifications/read-global
 ```
 
-## **🎯 Ventajas del Sistema Sin Autenticación**
+## **🎯 Resumen de la Implementación del Sonido**
 
-1. **Acceso Universal**: Cualquier usuario puede marcar notificaciones como leídas
-2. **Simplicidad**: No se requiere manejo de tokens en el frontend
-3. **Identificación Temporal**: Cada usuario recibe un ID temporal basado en IP y User-Agent
-4. **Persistencia**: El estado de lectura se mantiene para cada usuario temporal
-5. **Seguridad**: Solo operaciones de lectura están disponibles sin autenticación
+1. **✅ AudioService**: Servicio completo para manejar audio en el frontend
+2. **✅ Sonidos por Prioridad**: Diferentes sonidos según la importancia de la notificación
+3. **✅ Fallback**: Beep simple si no se pueden cargar los archivos de audio
+4. **✅ Controles**: Botones para habilitar/deshabilitar y controlar volumen
+5. **✅ Integración**: Se reproduce automáticamente al recibir notificaciones via SSE
 
 ## **⚠️ Consideraciones de Seguridad**
 
@@ -512,5 +855,5 @@ curl -X PATCH \
 - Los usuarios temporales solo pueden marcar como leídas, no pueden modificar contenido
 - El sistema genera IDs temporales únicos para cada cliente
 
-¿Te gustaría que probemos algún endpoint específico o necesitas ayuda con la implementación en el frontend?
+¿Te gustaría que probemos algún endpoint específico o necesitas ayuda con la implementación del sonido en el frontend?
 
