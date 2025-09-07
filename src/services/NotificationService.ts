@@ -254,11 +254,10 @@ export class NotificationService {
       }
 
       const notificationRepository = AppDataSource.getRepository(Notification);
-      const readStatusRepository = AppDataSource.getRepository(NotificationReadStatus);
       
       console.log(`📖 Marcando notificación ${notificationId} como leída para usuario: ${user_id}`);
 
-      // Primero verificar si la notificación existe y es global
+      // Verificar si la notificación existe
       const notification = await notificationRepository.findOne({
         where: { id: notificationId }
       });
@@ -268,46 +267,17 @@ export class NotificationService {
         return false;
       }
 
-      if (notification.is_global) {
-        // Para notificaciones globales, usar notification_read_status
-        console.log(`🌍 Notificación global detectada, usando notification_read_status`);
-        
-        let readStatus = await readStatusRepository.findOne({
-          where: { notification_id: notificationId, user_id }
-        });
+      // Actualizar directamente en la tabla notifications
+      console.log(`📝 Actualizando notificación directamente en la tabla notifications`);
+      
+      const result = await notificationRepository.update(
+        { id: notificationId },
+        { is_read: true }
+      );
 
-        if (readStatus) {
-          // Actualizar registro existente
-          readStatus.is_read = true;
-          readStatus.read_at = new Date();
-          await readStatusRepository.save(readStatus);
-          console.log(`✅ Estado de lectura actualizado para notificación global`);
-        } else {
-          // Crear nuevo registro
-          readStatus = readStatusRepository.create({
-            notification_id: notificationId,
-            user_id,
-            is_read: true,
-            read_at: new Date()
-          });
-          await readStatusRepository.save(readStatus);
-          console.log(`✅ Nuevo estado de lectura creado para notificación global`);
-        }
-        
-        return true;
-      } else {
-        // Para notificaciones específicas del usuario, actualizar directamente
-        console.log(`👤 Notificación específica del usuario, actualizando directamente`);
-        
-        const result = await notificationRepository.update(
-          { id: notificationId, user_id },
-          { is_read: true }
-        );
-
-        const updated = result.affected !== 0;
-        console.log(`✅ Notificación específica marcada como leída: ${updated}`);
-        return updated;
-      }
+      const updated = result.affected !== 0;
+      console.log(`✅ Notificación marcada como leída: ${updated}`);
+      return updated;
     } catch (error) {
       console.error('Error en markAsRead:', error);
       throw error;
@@ -315,35 +285,36 @@ export class NotificationService {
   }
 
   async markAllAsRead(user_id: string): Promise<number> {
-    const notificationRepository = AppDataSource.getRepository(Notification);
-    
-    console.log(`📖 Marcando todas las notificaciones como leídas para usuario: ${user_id}`);
-    
-    // Contar notificaciones no leídas antes de marcarlas
-    const unreadCount = await notificationRepository.count({
-      where: [
-        // Notificaciones específicas del usuario no leídas
-        { user_id, is_read: false },
-        // Notificaciones globales no leídas (que no estén en notification_read_status)
-        { is_global: true, is_read: false }
-      ]
-    });
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
 
-    console.log(`📊 Total de notificaciones no leídas encontradas: ${unreadCount}`);
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      console.log(`📖 Marcando todas las notificaciones como leídas y archivadas para usuario: ${user_id}`);
+      
+      // Contar notificaciones no leídas antes de marcarlas
+      const unreadCount = await notificationRepository.count({
+        where: { is_read: false }
+      });
 
-    // Marcar notificaciones específicas del usuario como leídas
-    const userNotificationsResult = await notificationRepository.update(
-      { user_id, is_read: false },
-      { is_read: true }
-    );
+      console.log(`📊 Total de notificaciones no leídas encontradas: ${unreadCount}`);
 
-    const userNotificationsUpdated = userNotificationsResult.affected || 0;
-    console.log(`✅ Notificaciones específicas del usuario marcadas como leídas: ${userNotificationsUpdated}`);
+      // Marcar TODAS las notificaciones como leídas y archivadas
+      const result = await notificationRepository.update(
+        { is_read: false },
+        { is_read: true, is_archived: true }
+      );
 
-    // Para notificaciones globales, usar la tabla notification_read_status
-    // Esto se maneja en el controlador para mantener la consistencia
+      const updated = result.affected || 0;
+      console.log(`✅ Notificaciones marcadas como leídas y archivadas: ${updated}`);
 
-    return userNotificationsUpdated;
+      return updated;
+    } catch (error) {
+      console.error('Error en markAllAsRead:', error);
+      throw error;
+    }
   }
 
   // Nuevo método para marcar notificaciones globales como leídas
@@ -429,52 +400,208 @@ export class NotificationService {
 
   // Método combinado para marcar todas las notificaciones como leídas
   async markAllNotificationsAsRead(user_id: string): Promise<{
-    userNotifications: number;
-    globalNotifications: number;
     total: number;
   }> {
-    console.log(`📖 Marcando TODAS las notificaciones como leídas para usuario: ${user_id}`);
+    console.log(`📖 Marcando TODAS las notificaciones como leídas y archivadas para usuario: ${user_id}`);
     
-    // Marcar notificaciones específicas del usuario
-    const userNotificationsUpdated = await this.markAllAsRead(user_id);
+    // Marcar todas las notificaciones como leídas y archivadas
+    const total = await this.markAllAsRead(user_id);
     
-    // Marcar notificaciones globales
-    const globalNotificationsUpdated = await this.markGlobalNotificationsAsRead(user_id);
-    
-    const total = userNotificationsUpdated + globalNotificationsUpdated;
-    
-    console.log(`📊 Resumen de marcado como leídas:`);
-    console.log(`  - Notificaciones específicas: ${userNotificationsUpdated}`);
-    console.log(`  - Notificaciones globales: ${globalNotificationsUpdated}`);
-    console.log(`  - Total: ${total}`);
+    console.log(`📊 Total de notificaciones marcadas como leídas y archivadas: ${total}`);
     
     return {
-      userNotifications: userNotificationsUpdated,
-      globalNotifications: globalNotificationsUpdated,
       total
     };
   }
 
   async archiveNotification(notificationId: string, user_id: string): Promise<boolean> {
-    const notificationRepository = AppDataSource.getRepository(Notification);
-    
-    const result = await notificationRepository.update(
-      { id: notificationId, user_id },
-      { is_archived: true }
-    );
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
 
-    return result.affected !== 0;
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      console.log(`📁 Archiving notification ${notificationId} for user: ${user_id}`);
+
+      // Verificar si la notificación existe
+      const notification = await notificationRepository.findOne({
+        where: { id: notificationId }
+      });
+
+      if (!notification) {
+        console.log(`❌ Notificación ${notificationId} no encontrada`);
+        return false;
+      }
+
+      // Actualizar directamente en la tabla notifications
+      console.log(`📝 Actualizando notificación directamente en la tabla notifications`);
+      
+      const result = await notificationRepository.update(
+        { id: notificationId },
+        { is_archived: true, is_read: true }
+      );
+
+      const updated = result.affected !== 0;
+      console.log(`✅ Notificación archivada: ${updated}`);
+      return updated;
+    } catch (error) {
+      console.error('Error en archiveNotification:', error);
+      throw error;
+    }
+  }
+
+  // Marcar como leída Y archivar en una operación
+  async markAsReadAndArchive(notificationId: string, user_id: string): Promise<{
+    markedAsRead: boolean;
+    archived: boolean;
+    notification: Notification | null;
+  }> {
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      console.log(`📖📁 Marcando como leída y archivando notificación ${notificationId} para usuario: ${user_id}`);
+
+      // Primero verificar si la notificación existe
+      const notification = await notificationRepository.findOne({
+        where: { id: notificationId }
+      });
+
+      if (!notification) {
+        console.log(`❌ Notificación ${notificationId} no encontrada`);
+        return {
+          markedAsRead: false,
+          archived: false,
+          notification: null
+        };
+      }
+
+      // Actualizar directamente en la tabla notifications
+      console.log(`📝 Actualizando notificación directamente en la tabla notifications`);
+      
+      const result = await notificationRepository.update(
+        { id: notificationId },
+        { is_read: true, is_archived: true }
+      );
+
+      const markedAsRead = result.affected !== 0;
+      const archived = result.affected !== 0;
+      
+      console.log(`✅ Notificación marcada como leída y archivada: ${markedAsRead}`);
+
+      return {
+        markedAsRead,
+        archived,
+        notification
+      };
+    } catch (error) {
+      console.error('Error en markAsReadAndArchive:', error);
+      throw error;
+    }
+  }
+
+  // Método para archivar múltiples notificaciones
+  async archiveMultipleNotifications(notificationIds: string[], user_id: string): Promise<{
+    success: string[];
+    failed: string[];
+    total: number;
+  }> {
+    console.log(`📁 Archiving ${notificationIds.length} notifications for user: ${user_id}`);
+    
+    const success: string[] = [];
+    const failed: string[] = [];
+
+    for (const notificationId of notificationIds) {
+      try {
+        const result = await this.archiveNotification(notificationId, user_id);
+        if (result) {
+          success.push(notificationId);
+        } else {
+          failed.push(notificationId);
+        }
+      } catch (error) {
+        console.error(`Error archiving notification ${notificationId}:`, error);
+        failed.push(notificationId);
+      }
+    }
+
+    return {
+      success,
+      failed,
+      total: notificationIds.length
+    };
   }
 
   async deleteNotification(notificationId: string, user_id: string): Promise<boolean> {
-    const notificationRepository = AppDataSource.getRepository(Notification);
-    
-    const result = await notificationRepository.delete({
-      id: notificationId,
-      user_id
-    });
+    try {
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
 
-    return result.affected !== 0;
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      console.log(`🗑️ Deleting notification ${notificationId} for user: ${user_id}`);
+
+      // Verificar si la notificación existe
+      const notification = await notificationRepository.findOne({
+        where: { id: notificationId }
+      });
+
+      if (!notification) {
+        console.log(`❌ Notificación ${notificationId} no encontrada`);
+        return false;
+      }
+
+      // Eliminar directamente de la tabla notifications
+      console.log(`📝 Eliminando notificación directamente de la tabla notifications`);
+      
+      const result = await notificationRepository.delete({
+        id: notificationId
+      });
+
+      const deleted = result.affected !== 0;
+      console.log(`✅ Notificación eliminada: ${deleted}`);
+      return deleted;
+    } catch (error) {
+      console.error('Error en deleteNotification:', error);
+      throw error;
+    }
+  }
+
+  // Método para eliminar múltiples notificaciones
+  async deleteMultipleNotifications(notificationIds: string[], user_id: string): Promise<{
+    success: string[];
+    failed: string[];
+    total: number;
+  }> {
+    console.log(`🗑️ Deleting ${notificationIds.length} notifications for user: ${user_id}`);
+    
+    const success: string[] = [];
+    const failed: string[] = [];
+
+    for (const notificationId of notificationIds) {
+      try {
+        const result = await this.deleteNotification(notificationId, user_id);
+        if (result) {
+          success.push(notificationId);
+        } else {
+          failed.push(notificationId);
+        }
+      } catch (error) {
+        console.error(`Error deleting notification ${notificationId}:`, error);
+        failed.push(notificationId);
+      }
+    }
+
+    return {
+      success,
+      failed,
+      total: notificationIds.length
+    };
   }
 
   async getUserSettings(user_id: string): Promise<NotificationSettings | null> {
