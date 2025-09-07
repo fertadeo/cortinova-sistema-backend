@@ -19,12 +19,21 @@ router.patch('/:id/read', noAuth, notificationController.markAsRead);
 router.patch('/read-all', noAuth, notificationController.markAllAsRead);
 router.patch('/read-global', noAuth, notificationController.markGlobalAsRead);
 
+// Gestión de archivado (SIN autenticación - acceso público)
+router.patch('/:id/archive', noAuth, notificationController.archiveNotificationPublic);
+router.patch('/:id/read-and-archive', noAuth, notificationController.markAsReadAndArchivePublic);
+
+// Gestión de eliminación (SIN autenticación - acceso público)
+router.delete('/:id', noAuth, notificationController.deleteNotificationPublic);
+
 // Endpoints de prueba (sin autenticación)
 router.get('/test/connection', notificationController.testConnection);
 router.get('/test/sse-stats', notificationController.testSSEConnection);
 router.post('/test/sse', notificationController.testSSE);
 router.post('/test/create-global', notificationController.testCreateGlobalNotification);
 router.post('/test/medida-notification', notificationController.testCreateMedidaWithNotification);
+router.get('/test/mark-read-archive/:notification_id', notificationController.testMarkAsReadAndArchive);
+router.get('/test/mark-all-read', notificationController.testMarkAllAsRead);
 
 // Endpoint para notificaciones de medidas (sin autenticación)
 router.post('/medida', notificationController.createMedidaNotification);
@@ -42,7 +51,10 @@ router.post('/:user_id/create', authenticateToken, notificationController.create
 
 // Gestión de notificaciones (requiere autenticación)
 router.patch('/:id/archive', authenticateToken, notificationController.archiveNotification);
-router.delete('/:id', authenticateToken, notificationController.deleteNotification);
+router.patch('/:id/read-and-archive', authenticateToken, notificationController.markAsReadAndArchive);
+router.patch('/archive-multiple', authenticateToken, notificationController.archiveMultipleNotifications);
+router.delete('/:id', noAuth, notificationController.deleteNotificationPublic);
+router.delete('/delete-multiple', authenticateToken, notificationController.deleteMultipleNotifications);
 
 // Configuración de usuario (requiere autenticación)
 router.get('/:user_id/settings', authenticateToken, notificationController.getUserSettings);

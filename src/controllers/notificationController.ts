@@ -4,6 +4,7 @@ import { NotificationService } from '../services/NotificationService';
 import { SSEService } from '../services/SSEService';
 import { PushNotificationService } from '../services/PushNotificationService';
 import { NotificationType, NotificationPriority, Notification } from '../entities/Notifications';
+import { NotificationReadStatus } from '../entities/NotificationReadStatus';
 import { z } from 'zod';
 
 // Esquemas de validación con Zod
@@ -302,13 +303,13 @@ export const notificationController = {
         });
       }
 
-      console.log(`📖 Usuario ${user_id} solicitando marcar todas las notificaciones como leídas`);
+      console.log(`📖 Usuario ${user_id} solicitando marcar todas las notificaciones como leídas y archivadas`);
 
       const result = await notificationService.markAllNotificationsAsRead(user_id);
 
       res.json({
         success: true,
-        message: `${result.total} notificaciones marcadas como leídas`,
+        message: `${result.total} notificaciones marcadas como leídas y archivadas`,
         data: {
           user_id: user_id,
           total: result.total,
@@ -363,7 +364,7 @@ export const notificationController = {
     }
   },
 
-  // Archivar notificación
+  // Archivar notificación (requiere autenticación)
   archiveNotification: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -374,49 +375,337 @@ export const notificationController = {
       if (!success) {
         return res.status(404).json({
           success: false,
-          error: 'Notificación no encontrada o no tienes permisos para archivarla'
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada o no tienes permisos para archivarla'
         });
       }
 
       res.json({
         success: true,
-        message: 'Notificación archivada'
+        message: 'Notificación archivada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          archived_at: new Date().toISOString()
+        }
       });
 
     } catch (error) {
       console.error('Error al archivar notificación:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al archivar notificación'
+        error: 'ARCHIVE_ERROR',
+        message: 'Error al archivar notificación'
       });
     }
   },
 
-  // Eliminar notificación
+  // Archivar notificación (SIN autenticación - público)
+  archiveNotificationPublic: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user_id = (req as any).user_id; // Extraído del middleware noAuth
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'USER_ID_REQUIRED',
+          message: 'ID de usuario requerido'
+        });
+      }
+
+      console.log(`📁 Usuario ${user_id} archivando notificación ${id}`);
+
+      const success = await notificationService.archiveNotification(id, user_id);
+
+      if (!success) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notificación archivada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          archived_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al archivar notificación:', error);
+      res.status(500).json({
+        success: false,
+        error: 'ARCHIVE_ERROR',
+        message: 'Error al archivar notificación'
+      });
+    }
+  },
+
+  // Marcar como leída Y archivar en una operación (requiere autenticación)
+  markAsReadAndArchive: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user_id = (req as any).user_id; // Extraído del middleware de autenticación
+
+      const result = await notificationService.markAsReadAndArchive(id, user_id);
+
+      if (!result.notification) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notificación marcada como leída y archivada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          marked_as_read: result.markedAsRead,
+          archived: result.archived,
+          notification: {
+            id: result.notification.id,
+            type: result.notification.type,
+            title: result.notification.title,
+            is_global: result.notification.is_global
+          },
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al marcar como leída y archivar notificación:', error);
+      res.status(500).json({
+        success: false,
+        error: 'MARK_READ_ARCHIVE_ERROR',
+        message: 'Error al procesar notificación'
+      });
+    }
+  },
+
+  // Marcar como leída Y archivar en una operación (SIN autenticación - público)
+  markAsReadAndArchivePublic: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user_id = (req as any).user_id; // Extraído del middleware noAuth
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'USER_ID_REQUIRED',
+          message: 'ID de usuario requerido'
+        });
+      }
+
+      console.log(`📖📁 Usuario ${user_id} marcando como leída y archivando notificación ${id}`);
+
+      const result = await notificationService.markAsReadAndArchive(id, user_id);
+
+      if (!result.notification) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notificación marcada como leída y archivada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          marked_as_read: result.markedAsRead,
+          archived: result.archived,
+          notification: {
+            id: result.notification.id,
+            type: result.notification.type,
+            title: result.notification.title,
+            is_global: result.notification.is_global
+          },
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al marcar como leída y archivar notificación:', error);
+      res.status(500).json({
+        success: false,
+        error: 'MARK_READ_ARCHIVE_ERROR',
+        message: 'Error al procesar notificación'
+      });
+    }
+  },
+
+  // Archivar múltiples notificaciones
+  archiveMultipleNotifications: async (req: Request, res: Response) => {
+    try {
+      const { notification_ids } = req.body;
+      const user_id = (req as any).user_id; // Extraído del middleware de autenticación
+
+      if (!notification_ids || !Array.isArray(notification_ids) || notification_ids.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_NOTIFICATION_IDS',
+          message: 'notification_ids debe ser un array no vacío'
+        });
+      }
+
+      const result = await notificationService.archiveMultipleNotifications(notification_ids, user_id);
+
+      res.json({
+        success: true,
+        message: `${result.success.length} notificaciones archivadas exitosamente`,
+        data: {
+          user_id: user_id,
+          total_requested: result.total,
+          success_count: result.success.length,
+          failed_count: result.failed.length,
+          success_ids: result.success,
+          failed_ids: result.failed,
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al archivar múltiples notificaciones:', error);
+      res.status(500).json({
+        success: false,
+        error: 'ARCHIVE_MULTIPLE_ERROR',
+        message: 'Error al archivar notificaciones'
+      });
+    }
+  },
+
+  // Eliminar notificación (requiere autenticación)
   deleteNotification: async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const user_id = (req as any).user_id; // Extraído del middleware de autenticación
+
+      console.log(`🗑️ Usuario ${user_id} eliminando notificación ${id}`);
 
       const success = await notificationService.deleteNotification(id, user_id);
 
       if (!success) {
         return res.status(404).json({
           success: false,
-          error: 'Notificación no encontrada o no tienes permisos para eliminarla'
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada o no tienes permisos para eliminarla'
         });
       }
 
       res.json({
         success: true,
-        message: 'Notificación eliminada'
+        message: 'Notificación eliminada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          deleted_at: new Date().toISOString()
+        }
       });
 
     } catch (error) {
       console.error('Error al eliminar notificación:', error);
       res.status(500).json({
         success: false,
-        error: 'Error al eliminar notificación'
+        error: 'DELETE_ERROR',
+        message: 'Error al eliminar notificación'
+      });
+    }
+  },
+
+  // Eliminar notificación (SIN autenticación - público)
+  deleteNotificationPublic: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const user_id = (req as any).user_id; // Extraído del middleware noAuth
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'USER_ID_REQUIRED',
+          message: 'ID de usuario requerido'
+        });
+      }
+
+      console.log(`🗑️ Usuario ${user_id} eliminando notificación ${id} (público)`);
+
+      const success = await notificationService.deleteNotification(id, user_id);
+
+      if (!success) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notificación eliminada exitosamente',
+        data: {
+          notification_id: id,
+          user_id: user_id,
+          deleted_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al eliminar notificación:', error);
+      res.status(500).json({
+        success: false,
+        error: 'DELETE_ERROR',
+        message: 'Error al eliminar notificación'
+      });
+    }
+  },
+
+  // Eliminar múltiples notificaciones (requiere autenticación)
+  deleteMultipleNotifications: async (req: Request, res: Response) => {
+    try {
+      const { notification_ids } = req.body;
+      const user_id = (req as any).user_id; // Extraído del middleware de autenticación
+
+      if (!notification_ids || !Array.isArray(notification_ids) || notification_ids.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_NOTIFICATION_IDS',
+          message: 'notification_ids debe ser un array no vacío'
+        });
+      }
+
+      console.log(`🗑️ Usuario ${user_id} eliminando ${notification_ids.length} notificaciones`);
+
+      const result = await notificationService.deleteMultipleNotifications(notification_ids, user_id);
+
+      res.json({
+        success: true,
+        message: `${result.success.length} notificaciones eliminadas exitosamente`,
+        data: {
+          user_id: user_id,
+          total_requested: result.total,
+          success_count: result.success.length,
+          failed_count: result.failed.length,
+          success_ids: result.success,
+          failed_ids: result.failed,
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al eliminar múltiples notificaciones:', error);
+      res.status(500).json({
+        success: false,
+        error: 'DELETE_MULTIPLE_ERROR',
+        message: 'Error al eliminar notificaciones'
       });
     }
   },
@@ -913,6 +1202,168 @@ export const notificationController = {
     }
   },
 
+  // Endpoint de prueba para verificar markAllAsRead
+  testMarkAllAsRead: async (req: Request, res: Response) => {
+    try {
+      const user_id = (req as any).user_id || 'test_user_123';
+
+      console.log(`🧪 Probando markAllAsRead para usuario ${user_id}`);
+
+      // Primero obtener el estado actual de las notificaciones
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      const notificationsBefore = await notificationRepository.find({
+        where: { is_read: false },
+        select: ['id', 'is_read', 'is_archived']
+      });
+
+      console.log('📋 Estado ANTES:', {
+        total_unread: notificationsBefore.length,
+        notifications: notificationsBefore.map(n => ({
+          id: n.id,
+          is_read: n.is_read,
+          is_archived: n.is_archived
+        }))
+      });
+
+      // Ejecutar markAllAsRead
+      const result = await notificationService.markAllAsRead(user_id);
+
+      // Obtener el estado después
+      const notificationsAfter = await notificationRepository.find({
+        where: { is_read: false },
+        select: ['id', 'is_read', 'is_archived']
+      });
+
+      const notificationsUpdated = await notificationRepository.find({
+        where: { is_read: true, is_archived: true },
+        select: ['id', 'is_read', 'is_archived']
+      });
+
+      console.log('📋 Estado DESPUÉS:', {
+        total_unread: notificationsAfter.length,
+        total_read_and_archived: notificationsUpdated.length,
+        updated_notifications: notificationsUpdated.map(n => ({
+          id: n.id,
+          is_read: n.is_read,
+          is_archived: n.is_archived
+        }))
+      });
+
+      res.json({
+        success: true,
+        message: 'Test de markAllAsRead completado',
+        data: {
+          user_id,
+          before: {
+            total_unread: notificationsBefore.length,
+            notifications: notificationsBefore
+          },
+          after: {
+            total_unread: notificationsAfter.length,
+            total_read_and_archived: notificationsUpdated.length,
+            updated_notifications: notificationsUpdated
+          },
+          result: {
+            updated_count: result
+          },
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error en test markAllAsRead:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error en test markAllAsRead',
+        details: error.message
+      });
+    }
+  },
+
+  // Endpoint de prueba para verificar markAsReadAndArchive
+  testMarkAsReadAndArchive: async (req: Request, res: Response) => {
+    try {
+      const { notification_id } = req.params;
+      const user_id = (req as any).user_id || 'test_user_123';
+
+      console.log(`🧪 Probando markAsReadAndArchive para notificación ${notification_id}`);
+
+      // Primero obtener el estado actual de la notificación
+      if (!AppDataSource.isInitialized) {
+        await AppDataSource.initialize();
+      }
+
+      const notificationRepository = AppDataSource.getRepository(Notification);
+      
+      const notificationBefore = await notificationRepository.findOne({
+        where: { id: notification_id }
+      });
+
+      if (!notificationBefore) {
+        return res.status(404).json({
+          success: false,
+          error: 'NOTIFICATION_NOT_FOUND',
+          message: 'Notificación no encontrada'
+        });
+      }
+
+      console.log('📋 Estado ANTES:', {
+        id: notificationBefore.id,
+        is_read: notificationBefore.is_read,
+        is_archived: notificationBefore.is_archived
+      });
+
+      // Ejecutar markAsReadAndArchive
+      const result = await notificationService.markAsReadAndArchive(notification_id, user_id);
+
+      // Obtener el estado después
+      const notificationAfter = await notificationRepository.findOne({
+        where: { id: notification_id }
+      });
+
+      console.log('📋 Estado DESPUÉS:', {
+        id: notificationAfter?.id,
+        is_read: notificationAfter?.is_read,
+        is_archived: notificationAfter?.is_archived
+      });
+
+      res.json({
+        success: true,
+        message: 'Test de markAsReadAndArchive completado',
+        data: {
+          notification_id,
+          user_id,
+          before: {
+            is_read: notificationBefore.is_read,
+            is_archived: notificationBefore.is_archived
+          },
+          after: {
+            is_read: notificationAfter?.is_read,
+            is_archived: notificationAfter?.is_archived
+          },
+          result: {
+            markedAsRead: result.markedAsRead,
+            archived: result.archived
+          },
+          processed_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error en test markAsReadAndArchive:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error en test markAsReadAndArchive',
+        details: error.message
+      });
+    }
+  },
+
   // Endpoint de prueba para simular el endpoint /create
   testCreateEndpoint: async (req: Request, res: Response) => {
     try {
@@ -983,5 +1434,6 @@ export const notificationController = {
         error: 'Error al crear notificación'
       });
     }
-  }
+  },
+
 };
