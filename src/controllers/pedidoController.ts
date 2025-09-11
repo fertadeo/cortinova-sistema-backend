@@ -126,4 +126,50 @@ export const actualizarEstadoYFechaEntrega = async (req: Request, res: Response)
     } finally {
         await queryRunner.release();
     }
+}
+
+// Obtener pedidos confirmados por mes
+export const getPedidosConfirmadosPorMes = async (req: Request, res: Response) => {
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        const pedidosConfirmadosPorMes = await queryRunner.query(`
+            SELECT 
+                DATE_FORMAT(fecha_pedido, '%Y-%m') as mes,
+                COUNT(*) as total_pedidos_confirmados,
+                SUM(total) as suma_total_confirmados,
+                COUNT(DISTINCT clienteid) as total_clientes_confirmados
+            FROM pedido
+            WHERE estado = 'Confirmado'
+            AND fecha_pedido >= DATE_SUB(CURRENT_DATE, INTERVAL 12 MONTH)
+            GROUP BY DATE_FORMAT(fecha_pedido, '%Y-%m')
+            ORDER BY mes DESC
+        `);
+
+        await queryRunner.commitTransaction();
+
+        res.json({
+            success: true,
+            data: pedidosConfirmadosPorMes.map((item: any) => ({
+                mes: item.mes,
+                total_pedidos_confirmados: Number(item.total_pedidos_confirmados),
+                suma_total_confirmados: Number(item.suma_total_confirmados),
+                total_clientes_confirmados: Number(item.total_clientes_confirmados)
+            }))
+        });
+
+    } catch (error) {
+        await queryRunner.rollbackTransaction();
+        console.error("Error al obtener estadísticas de pedidos confirmados por mes:", error);
+        res.status(500).json({
+            success: false,
+            error: "Error al obtener estadísticas de pedidos confirmados por mes",
+            details: error instanceof Error ? error.message : 'Error desconocido'
+        });
+    } finally {
+        await queryRunner.release();
+    }
 } 
