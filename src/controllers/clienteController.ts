@@ -117,35 +117,79 @@ export const clienteController = {
         }
     },
 
-    // Eliminar cliente
+    // Eliminar cliente con todos sus datos vinculados
     deleteCliente: async (req: Request, res: Response) => {
+        const queryRunner = AppDataSource.createQueryRunner();
+        
         try {
             const id = parseInt(req.params.id);
 
-            // Primero eliminar pedidos asociados
-            await pedidoRepository.delete({ cliente: { id } });
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
 
-            const clienteToDelete = await clienteRepository.findOneBy({ id });
+            // Verificar que el cliente existe
+            const cliente = await queryRunner.query(`
+                SELECT id, nombre, dni FROM clientes WHERE id = ?`, [id]);
 
-            if (!clienteToDelete) {
+            if (!cliente.length) {
                 return res.status(404).json({
                     success: false,
                     message: `Cliente con ID ${id} no encontrado`
                 });
             }
 
-            await clienteRepository.remove(clienteToDelete);
+            const clienteData = cliente[0];
+
+            // 1. Eliminar pedidos del cliente PRIMERO (tienen FK a presupuestos)
+            await queryRunner.query(`
+                DELETE FROM pedido WHERE clienteid = ?`, [id]);
+
+            // 2. Eliminar items de presupuestos asociados
+            await queryRunner.query(`
+                DELETE pi FROM presupuesto_items pi
+                INNER JOIN presupuestos p ON pi.presupuesto_id = p.id
+                WHERE p.cliente_id = ?`, [id]);
+
+            // 3. Eliminar presupuestos del cliente (después de eliminar pedidos)
+            await queryRunner.query(`
+                DELETE FROM presupuestos WHERE cliente_id = ?`, [id]);
+
+            // 4. Eliminar medidas del cliente
+            await queryRunner.query(`
+                DELETE FROM medidas WHERE clienteId = ?`, [id]);
+
+            // 5. Finalmente eliminar el cliente
+            await queryRunner.query(`
+                DELETE FROM clientes WHERE id = ?`, [id]);
+
+            await queryRunner.commitTransaction();
 
             res.json({
                 success: true,
-                message: 'Cliente y sus pedidos asociados eliminados exitosamente'
+                message: 'Cliente y todos sus datos vinculados eliminados exitosamente',
+                data: {
+                    clienteId: id,
+                    nombre: clienteData.nombre,
+                    dni: clienteData.dni,
+                    eliminado: {
+                        presupuestos: true,
+                        pedidos: true,
+                        medidas: true,
+                        itemsPresupuestos: true
+                    }
+                }
             });
+
         } catch (error) {
+            await queryRunner.rollbackTransaction();
             console.error('Error al eliminar cliente:', error);
             res.status(500).json({
                 success: false,
-                message: 'Error al eliminar el cliente'
+                message: 'Error al eliminar el cliente y sus datos vinculados',
+                error: error instanceof Error ? error.message : 'Error desconocido'
             });
+        } finally {
+            await queryRunner.release();
         }
     },
 
