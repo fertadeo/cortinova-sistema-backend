@@ -965,5 +965,83 @@ export const presupuestoController = {
     } finally {
       await queryRunner.release();
     }
+  },
+
+  // Eliminar presupuesto y todos sus items
+  deletePresupuesto: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      // Verificar que el presupuesto existe
+      const presupuesto = await queryRunner.query(`
+        SELECT id, numero_presupuesto, cliente_id FROM presupuestos WHERE id = ?`, [id]);
+
+      if (!presupuesto.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      const presupuestoData = presupuesto[0];
+
+      // Verificar si el presupuesto ya fue convertido a pedido
+      const pedidoAsociado = await queryRunner.query(`
+        SELECT id FROM pedido WHERE presupuesto_id = ?`, [id]);
+
+      if (pedidoAsociado.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No se puede eliminar el presupuesto porque ya fue convertido a pedido'
+        });
+      }
+
+      // Eliminar items del presupuesto
+      await queryRunner.query(`
+        DELETE FROM presupuesto_items WHERE presupuesto_id = ?`, [id]);
+
+      // Eliminar el presupuesto
+      await queryRunner.query(`
+        DELETE FROM presupuestos WHERE id = ?`, [id]);
+
+      await queryRunner.commitTransaction();
+
+      // Enviar notificación de eliminación
+      try {
+        const user_id = (req as any).user_id;
+        await notificationService.notifySistema(
+          user_id,
+          `Presupuesto Eliminado #${presupuestoData.numero_presupuesto}`,
+          `Presupuesto #${presupuestoData.numero_presupuesto} eliminado exitosamente`,
+          `/presupuestos`
+        );
+      } catch (notificationError) {
+        console.error('Error al enviar notificación:', notificationError);
+      }
+
+      res.json({
+        success: true,
+        message: 'Presupuesto y todos sus items eliminados exitosamente',
+        data: {
+          presupuestoId: parseInt(id),
+          numeroPresupuesto: presupuestoData.numero_presupuesto
+        }
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al eliminar presupuesto:", error);
+      res.status(500).json({
+        success: false,
+        error: "Error al eliminar presupuesto",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
   }
 };

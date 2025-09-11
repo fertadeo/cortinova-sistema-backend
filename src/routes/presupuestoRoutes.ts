@@ -20,5 +20,6 @@ router.post('/', presupuestoController.createPresupuesto);
 router.put('/:id/descuento', presupuestoController.updatePresupuestoConDescuento);
 router.post('/:id/convertir-a-pedido', presupuestoController.convertirAPresupuesto);
 router.post('/crear-con-medidas', presupuestoController.crearPresupuestoConMedidas);
+router.delete('/:id', presupuestoController.deletePresupuesto);
 
 export default router;
