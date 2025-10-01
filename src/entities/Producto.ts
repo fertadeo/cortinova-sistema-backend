@@ -6,41 +6,41 @@ export class Producto {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column({ default: '' })
   nombreProducto!: string;
 
-  @Column()
+  @Column({ default: '0' })
   cantidad_stock!: string;
 
-  @Column()
+  @Column({ default: '' })
   descripcion!: string;
 
-  @Column()
+  @Column({ default: '0' })
   precioCosto!: string;
 
-  @Column()
+  @Column({ default: '0' })
   precio!: string;
 
-  @Column()
+  @Column({ default: 'ARS' })
   divisa!: string;
 
-  @Column()
+  @Column({ default: 0 })
   descuento!: number;
 
-  @Column()
-  rubro_id!: string;
+  @Column({ type: 'varchar', nullable: true })
+  rubro_id!: string | null;
 
-  @Column()
-  sistema_id!: string;
+  @Column({ type: 'varchar', nullable: true })
+  sistema_id!: string | null;
 
-  @Column()
+  @Column({ default: true })
   disponible!: boolean;
 
-  @Column()
-  proveedor_id!: number;
+  @Column({ type: 'int', nullable: true })
+  proveedor_id!: number | null;
 
-  @ManyToOne(() => Proveedores, (proveedor) => proveedor.productos)
+  @ManyToOne(() => Proveedores, (proveedor) => proveedor.productos, { nullable: true })
   @JoinColumn({ name: 'proveedor_id' })  // Especifica que la columna de clave foránea es 'proveedorid'
-  proveedor!: Proveedores;
+  proveedor!: Proveedores | null;
   // proveedor_id: any;
 }
