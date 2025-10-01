@@ -246,10 +246,10 @@ export const actualizarProducto = async (req: Request, res: Response) => {
     producto.precio = precioValidado;
     producto.divisa = divisa ?? producto.divisa;
     producto.descuento = descuento ?? producto.descuento;
-    producto.rubro_id = rubro_id ?? producto.rubro_id;
-    producto.sistema_id = sistema_id ?? producto.sistema_id;
+    producto.rubro_id = rubro_id !== undefined ? rubro_id : producto.rubro_id;
+    producto.sistema_id = sistema_id !== undefined ? sistema_id : producto.sistema_id;
     producto.disponible = disponible ?? producto.disponible;
-    producto.proveedor_id = proveedor_id ?? producto.proveedor_id;
+    producto.proveedor_id = proveedor_id !== undefined ? proveedor_id : producto.proveedor_id;
 
     await productoRepository.save(producto);
 
@@ -364,10 +364,10 @@ export const crearProducto = async (req: Request, res: Response) => {
     nuevoProducto.precio = validarPrecio(precio, 'Crear Producto');
     nuevoProducto.divisa = divisa;
     nuevoProducto.descuento = descuento;
-    nuevoProducto.rubro_id = rubro_id;
-    nuevoProducto.sistema_id = sistema_id;
+    nuevoProducto.rubro_id = rubro_id || null;
+    nuevoProducto.sistema_id = sistema_id || null;
     nuevoProducto.disponible = disponible;
-    nuevoProducto.proveedor_id = proveedor_id;
+    nuevoProducto.proveedor_id = proveedor_id || null;
 
     // Guardar el nuevo producto en la base de datos
     await AppDataSource.getRepository(Producto).save(nuevoProducto);
@@ -477,19 +477,19 @@ export const importacionMasivaProductos = async (req: Request, res: Response) =>
         const descuento = row['descuento'] && !isNaN(Number(row['descuento'])) ? Number(row['descuento']) : 0;
         const disponible = row['disponible'] === 'SI' || row['disponible'] === 'si' || row['disponible'] === '1' || row['disponible'] === true;
 
-        let proveedor_id = 1;
+        let proveedor_id: number | null = null;
         const proveedorIdRaw = row['proveedor_id'] || row['Proveedor_id'];
         if (proveedorIdRaw && proveedorIdRaw !== '' && !isNaN(Number(proveedorIdRaw))) {
           proveedor_id = Number(proveedorIdRaw);
         }
 
-        let rubro_id = '';
+        let rubro_id: string | null = null;
         const rubroIdRaw = row['rubro_id'] || row['Rubro_id'];
         if (rubroIdRaw && rubroIdRaw !== '' && !isNaN(Number(rubroIdRaw))) {
           rubro_id = String(rubroIdRaw);
         }
 
-        let sistema_id = '';
+        let sistema_id: string | null = null;
         const sistemaIdRaw = row['sistema_id'] || row['Sistema_id'];
         if (sistemaIdRaw && sistemaIdRaw !== '' && !isNaN(Number(sistemaIdRaw))) {
           sistema_id = String(sistemaIdRaw);
@@ -639,7 +639,7 @@ export const corregirPreciosCero = async (req: Request, res: Response) => {
 };
 
 // Función auxiliar para obtener precio por defecto según rubro
-const obtenerPrecioPorDefecto = (rubroId: string): number => {
+const obtenerPrecioPorDefecto = (rubroId: string | null): number => {
   const preciosPorDefecto: { [key: string]: number } = {
     '1': 25000, // CONFECCIONES
     '2': 10000, // COLOCACIONES
@@ -651,5 +651,5 @@ const obtenerPrecioPorDefecto = (rubroId: string): number => {
     '8': 40000  // FLEXCOLOR
   };
   
-  return preciosPorDefecto[rubroId] || 25000; // Precio por defecto general
+  return (rubroId && preciosPorDefecto[rubroId]) ? preciosPorDefecto[rubroId] : 25000; // Precio por defecto general
 };
