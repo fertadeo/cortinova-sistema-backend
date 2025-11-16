@@ -17,6 +17,7 @@ router.get('/medidas-cliente/:clienteId', medidasController.getMedidasAgrupadasB
 // RUTAS CON PARÁMETROS DINÁMICOS - DEBEN IR DESPUÉS
 router.get('/:id', presupuestoController.getPresupuestoById);
 router.post('/', presupuestoController.createPresupuesto);
+router.put('/:id', presupuestoController.updatePresupuesto);
 router.put('/:id/descuento', presupuestoController.updatePresupuestoConDescuento);
 router.post('/:id/convertir-a-pedido', presupuestoController.convertirAPresupuesto);
 router.post('/crear-con-medidas', presupuestoController.crearPresupuestoConMedidas);

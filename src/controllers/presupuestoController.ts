@@ -967,6 +967,196 @@ export const presupuestoController = {
     }
   },
 
+  // Actualizar presupuesto completo
+  updatePresupuesto: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const presupuestoData = req.body;
+    const queryRunner = AppDataSource.createQueryRunner();
+
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      // Verificar que el presupuesto existe
+      const presupuesto = await queryRunner.query(`
+        SELECT id, numero_presupuesto, cliente_id, estado FROM presupuestos WHERE id = ?`, [id]);
+
+      if (!presupuesto.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      const presupuestoActual = presupuesto[0];
+
+      // Verificar si el presupuesto ya fue convertido a pedido
+      const pedidoAsociado = await queryRunner.query(`
+        SELECT id FROM pedido WHERE presupuesto_id = ?`, [id]);
+
+      if (pedidoAsociado.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No se puede editar el presupuesto porque ya fue convertido a pedido'
+        });
+      }
+
+      // Validar que clienteId coincida si se envía (opcional, pero si se envía debe ser correcto)
+      if (presupuestoData.clienteId && presupuestoData.clienteId !== presupuestoActual.cliente_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'No se puede cambiar el cliente del presupuesto'
+        });
+      }
+
+      // Validar que se envíen productos
+      if (!presupuestoData.productos || !Array.isArray(presupuestoData.productos) || presupuestoData.productos.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'El presupuesto debe contener al menos un producto'
+        });
+      }
+
+      // USAR LOS VALORES EXACTOS QUE ENVÍA EL FRONTEND
+      const subtotal = presupuestoData.subtotal || 0;
+      const descuento = presupuestoData.descuento || 0;
+      const total = presupuestoData.total || 0;
+
+      // Calcular valores de motorización
+      let incluirMotorizacion = false;
+      let precioTotalMotorizacion = 0;
+
+      presupuestoData.productos.forEach((producto: any) => {
+        if (producto.incluirMotorizacion) {
+          incluirMotorizacion = true;
+          precioTotalMotorizacion += (producto.precioMotorizacion || 0) * (producto.cantidad || 1);
+        }
+      });
+
+      // Eliminar items actuales del presupuesto
+      await queryRunner.query(`
+        DELETE FROM presupuesto_items WHERE presupuesto_id = ?`, [id]);
+
+      // Actualizar el presupuesto en la base de datos
+      await queryRunner.query(`
+        UPDATE presupuestos 
+        SET 
+          subtotal = ?, 
+          descuento = ?, 
+          total = ?, 
+          presupuesto_json = ?,
+          incluirMotorizacion = ?,
+          precioMotorizacion = ?
+        WHERE id = ?`,
+        [
+          subtotal,
+          descuento,
+          total,
+          JSON.stringify(presupuestoData),
+          incluirMotorizacion,
+          precioTotalMotorizacion,
+          id
+        ]
+      );
+
+      // Insertar los nuevos items
+      await Promise.all(
+        presupuestoData.productos.map(async (producto: any) => {
+          // Si es un producto del catálogo (como COLOCACIONES)
+          if (producto.nombre === 'COLOCACIONES') {
+            return queryRunner.query(`
+              INSERT INTO presupuesto_items 
+              (presupuesto_id, producto_id, nombre, descripcion, cantidad, precio_unitario, subtotal, detalles)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                id,
+                producto.id,
+                producto.nombre,
+                producto.descripcion,
+                producto.cantidad,
+                producto.precioUnitario,
+                producto.subtotal,
+                JSON.stringify(producto.detalles || {})
+              ]
+            );
+          } else {
+            // Para productos personalizados (cortinas)
+            const detallesCompletos = {
+              ...producto.detalles,
+              espacio: producto.espacio,
+              incluirMotorizacion: producto.incluirMotorizacion,
+              precioMotorizacion: producto.precioMotorizacion,
+              tipoTela: producto.tipoTela,
+              tipoApertura: producto.tipoApertura,
+              colorSistema: producto.colorSistema,
+              ladoComando: producto.ladoComando,
+              ladoApertura: producto.ladoApertura,
+              detalle: producto.detalle
+            };
+            
+            return queryRunner.query(`
+              INSERT INTO presupuesto_items 
+              (presupuesto_id, producto_id, nombre, descripcion, cantidad, precio_unitario, subtotal, detalles)
+              VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
+              [
+                id,
+                producto.nombre,
+                producto.descripcion,
+                producto.cantidad,
+                producto.precioUnitario,
+                producto.subtotal,
+                JSON.stringify(detallesCompletos)
+              ]
+            );
+          }
+        })
+      );
+
+      await queryRunner.commitTransaction();
+
+      // Enviar notificación de actualización
+      try {
+        const user_id = (req as any).user_id;
+        
+        // Obtener información del cliente para la notificación
+        const cliente = await queryRunner.query(`
+          SELECT nombre, email FROM clientes WHERE id = ?
+        `, [presupuestoActual.cliente_id]);
+
+        if (cliente.length > 0) {
+          await notificationService.notifySistema(
+            user_id,
+            `Presupuesto Actualizado #${presupuestoActual.numero_presupuesto}`,
+            `Presupuesto #${presupuestoActual.numero_presupuesto} actualizado exitosamente para ${cliente[0].nombre} por $${total.toFixed(2)}`,
+            `/presupuestos/${id}`
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error al enviar notificación:', notificationError);
+        // No fallar la operación principal por un error de notificación
+      }
+
+      res.json({ 
+        success: true, 
+        presupuestoId: parseInt(id),
+        incluirMotorizacion,
+        precioTotalMotorizacion,
+        message: "Presupuesto actualizado exitosamente" 
+      });
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error("Error al actualizar presupuesto:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Error al actualizar presupuesto",
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      });
+    } finally {
+      await queryRunner.release();
+    }
+  },
+
   // Eliminar presupuesto y todos sus items
   deletePresupuesto: async (req: Request, res: Response) => {
     const { id } = req.params;
