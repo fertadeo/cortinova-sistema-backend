@@ -32,6 +32,77 @@ interface Presupuesto {
   total: number;
 }
 
+const isObject = (value: unknown): value is Record<string, any> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const safeJsonParse = (value: unknown) => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
+const toNumber = (value: unknown, fallback = 0): number => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const normalizeProductSnapshot = (producto: any = {}, existingProducto: any = {}) => {
+  const incomingDetalles = isObject(producto.detalles) ? producto.detalles : {};
+  const existingDetalles = isObject(existingProducto.detalles) ? existingProducto.detalles : {};
+
+  return {
+    ...existingProducto,
+    ...producto,
+    detalles: { ...existingDetalles, ...incomingDetalles }
+  };
+};
+
+const normalizePresupuestoSnapshot = (incomingData: any = {}, existingData: any = {}) => {
+  const existingProductos = Array.isArray(existingData.productos) ? existingData.productos : [];
+  const incomingProductos = Array.isArray(incomingData.productos) ? incomingData.productos : existingProductos;
+
+  return {
+    ...existingData,
+    ...incomingData,
+    esEstimativo: typeof incomingData.esEstimativo === 'boolean'
+      ? incomingData.esEstimativo
+      : (typeof existingData.esEstimativo === 'boolean' ? existingData.esEstimativo : false),
+    showMeasuresInPDF: typeof incomingData.showMeasuresInPDF === 'boolean'
+      ? incomingData.showMeasuresInPDF
+      : (typeof existingData.showMeasuresInPDF === 'boolean' ? existingData.showMeasuresInPDF : false),
+    shouldRound: typeof incomingData.shouldRound === 'boolean'
+      ? incomingData.shouldRound
+      : (typeof existingData.shouldRound === 'boolean' ? existingData.shouldRound : false),
+    applyDiscount: typeof incomingData.applyDiscount === 'boolean'
+      ? incomingData.applyDiscount
+      : (typeof existingData.applyDiscount === 'boolean' ? existingData.applyDiscount : false),
+    subtotal: toNumber(incomingData.subtotal, toNumber(existingData.subtotal, 0)),
+    descuento: toNumber(incomingData.descuento, toNumber(existingData.descuento, 0)),
+    total: toNumber(incomingData.total, toNumber(existingData.total, 0)),
+    numeroPresupuesto: incomingData.numeroPresupuesto || existingData.numeroPresupuesto || '',
+    productos: incomingProductos.map((producto: any, index: number) =>
+      normalizeProductSnapshot(producto, existingProductos[index] || {})
+    )
+  };
+};
+
+const buildItemDetallesSnapshot = (producto: any = {}) => {
+  const detallesOriginales = isObject(producto.detalles) ? producto.detalles : {};
+
+  return {
+    ...detallesOriginales,
+    ...producto,
+    detalles: detallesOriginales
+  };
+};
+
 // Instancia del servicio de notificaciones
 const notificationService = new NotificationService();
 
@@ -76,15 +147,16 @@ export const presupuestoController = {
             WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
 
           // Parsear el presupuesto_json si existe
-          const presupuestoJson = presupuesto.presupuesto_json ? 
+          const presupuestoJsonRaw = presupuesto.presupuesto_json ?
             JSON.parse(presupuesto.presupuesto_json) : null;
+          const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
 
           return {
             ...presupuesto,
             presupuesto_json: presupuestoJson,
             items: items.map((item: any) => ({
               ...item,
-              detalles: JSON.parse(item.detalles || '{}')
+              detalles: safeJsonParse(item.detalles || '{}')
             }))
           };
         })
@@ -110,16 +182,18 @@ export const presupuestoController = {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
+      const normalizedPresupuesto = normalizePresupuestoSnapshot(presupuestoData);
+
       // USAR LOS VALORES EXACTOS QUE ENVÍA EL FRONTEND
-      const subtotal = presupuestoData.subtotal || 0;
-      const descuento = presupuestoData.descuento || 0;
-      const total = presupuestoData.total || 0;
+      const subtotal = normalizedPresupuesto.subtotal;
+      const descuento = normalizedPresupuesto.descuento;
+      const total = normalizedPresupuesto.total;
 
       // Calcular valores de motorización
       let incluirMotorizacion = false;
       let precioTotalMotorizacion = 0;
 
-      presupuestoData.productos.forEach((producto: any) => {
+      normalizedPresupuesto.productos.forEach((producto: any) => {
         if (producto.incluirMotorizacion) {
           incluirMotorizacion = true;
           precioTotalMotorizacion += (producto.precioMotorizacion || 0) * (producto.cantidad || 1);
@@ -140,13 +214,13 @@ export const presupuestoController = {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          presupuestoData.numeroPresupuesto,
-          presupuestoData.clienteId,
+          normalizedPresupuesto.numeroPresupuesto,
+          normalizedPresupuesto.clienteId,
           new Date(),
           subtotal,
           descuento,
           total,
-          JSON.stringify(presupuestoData),
+          JSON.stringify(normalizedPresupuesto),
           incluirMotorizacion,
           precioTotalMotorizacion
         ]
@@ -155,7 +229,7 @@ export const presupuestoController = {
       const presupuestoId = presupuestoResult.insertId;
 
       await Promise.all(
-        presupuestoData.productos.map(async (producto: any) => {
+        normalizedPresupuesto.productos.map(async (producto: any) => {
           // Si es un producto del catálogo (como COLOCACIONES)
           if (producto.nombre === 'COLOCACIONES') {
             return queryRunner.query(`
@@ -170,24 +244,10 @@ export const presupuestoController = {
                 producto.cantidad,
                 producto.precioUnitario,
                 producto.subtotal,
-                JSON.stringify(producto.detalles || {})
+                JSON.stringify(buildItemDetallesSnapshot(producto))
               ]
             );
           } else {
-            // Para productos personalizados (cortinas)
-            const detallesCompletos = {
-              ...producto.detalles,
-              espacio: producto.espacio,
-              incluirMotorizacion: producto.incluirMotorizacion,
-              precioMotorizacion: producto.precioMotorizacion,
-              tipoTela: producto.tipoTela,
-              tipoApertura: producto.tipoApertura,
-              colorSistema: producto.colorSistema,
-              ladoComando: producto.ladoComando,
-              ladoApertura: producto.ladoApertura,
-              detalle: producto.detalle
-            };
-            
             return queryRunner.query(`
               INSERT INTO presupuesto_items 
               (presupuesto_id, producto_id, nombre, descripcion, cantidad, precio_unitario, subtotal, detalles)
@@ -199,7 +259,7 @@ export const presupuestoController = {
                 producto.cantidad,
                 producto.precioUnitario,
                 producto.subtotal,
-                JSON.stringify(detallesCompletos)
+                JSON.stringify(buildItemDetallesSnapshot(producto))
               ]
             );
           }
@@ -215,12 +275,12 @@ export const presupuestoController = {
         // Obtener información del cliente para la notificación
         const cliente = await queryRunner.query(`
           SELECT nombre, email FROM clientes WHERE id = ?
-        `, [presupuestoData.clienteId]);
+        `, [normalizedPresupuesto.clienteId]);
 
         if (cliente.length > 0) {
           await notificationService.notifySistema(
             user_id,
-            `Presupuesto Creado #${presupuestoData.numeroPresupuesto}`,
+            `Presupuesto Creado #${normalizedPresupuesto.numeroPresupuesto}`,
             `Presupuesto creado exitosamente para ${cliente[0].nombre} por $${total.toFixed(2)}`,
             `/presupuestos/${presupuestoId}`
           );
@@ -291,15 +351,16 @@ export const presupuestoController = {
             WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
 
           // Parsear el presupuesto_json si existe
-          const presupuestoJson = presupuesto.presupuesto_json ? 
+          const presupuestoJsonRaw = presupuesto.presupuesto_json ?
             JSON.parse(presupuesto.presupuesto_json) : null;
+          const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
 
           return {
             ...presupuesto,
             presupuesto_json: presupuestoJson,
             items: items.map((item: any) => ({
               ...item,
-              detalles: JSON.parse(item.detalles || '{}')
+              detalles: safeJsonParse(item.detalles || '{}')
             }))
           };
         })
@@ -828,8 +889,9 @@ export const presupuestoController = {
       await queryRunner.commitTransaction();
 
       // Parsear el presupuesto_json si existe
-      const presupuestoJson = presupuestoData.presupuesto_json ? 
+      const presupuestoJsonRaw = presupuestoData.presupuesto_json ?
         JSON.parse(presupuestoData.presupuesto_json) : null;
+      const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
 
       res.json({
         success: true,
@@ -838,7 +900,7 @@ export const presupuestoController = {
           presupuesto_json: presupuestoJson,
           items: items.map((item: any) => ({
             ...item,
-            detalles: JSON.parse(item.detalles || '{}')
+            detalles: safeJsonParse(item.detalles || '{}')
           }))
         }
       });
@@ -933,8 +995,9 @@ export const presupuestoController = {
 
       const presupuestosConEspacio = presupuestos.map((presupuesto: any) => {
         // Parsear el presupuesto_json si existe
-        const presupuestoJson = presupuesto.presupuesto_json ? 
+        const presupuestoJsonRaw = presupuesto.presupuesto_json ?
           JSON.parse(presupuesto.presupuesto_json) : null;
+        const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
 
         // Extraer solo el dato Espacio
         const espacio = presupuestoJson?.Espacio || null;
@@ -1009,24 +1072,34 @@ export const presupuestoController = {
         });
       }
 
-      // Validar que se envíen productos
-      if (!presupuestoData.productos || !Array.isArray(presupuestoData.productos) || presupuestoData.productos.length === 0) {
+      const presupuestoDbActual = await queryRunner.query(
+        `SELECT presupuesto_json FROM presupuestos WHERE id = ?`,
+        [id]
+      );
+      const currentJson = presupuestoDbActual[0]?.presupuesto_json
+        ? JSON.parse(presupuestoDbActual[0].presupuesto_json)
+        : {};
+
+      const normalizedPresupuesto = normalizePresupuestoSnapshot(presupuestoData, currentJson);
+
+      // Validar que haya productos finales (en payload o heredados)
+      if (!Array.isArray(normalizedPresupuesto.productos) || normalizedPresupuesto.productos.length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'El presupuesto debe contener al menos un producto'
+          error: 'El presupuesto debe contener al menos un producto en el snapshot final'
         });
       }
 
       // USAR LOS VALORES EXACTOS QUE ENVÍA EL FRONTEND
-      const subtotal = presupuestoData.subtotal || 0;
-      const descuento = presupuestoData.descuento || 0;
-      const total = presupuestoData.total || 0;
+      const subtotal = normalizedPresupuesto.subtotal;
+      const descuento = normalizedPresupuesto.descuento;
+      const total = normalizedPresupuesto.total;
 
       // Calcular valores de motorización
       let incluirMotorizacion = false;
       let precioTotalMotorizacion = 0;
 
-      presupuestoData.productos.forEach((producto: any) => {
+      normalizedPresupuesto.productos.forEach((producto: any) => {
         if (producto.incluirMotorizacion) {
           incluirMotorizacion = true;
           precioTotalMotorizacion += (producto.precioMotorizacion || 0) * (producto.cantidad || 1);
@@ -1052,7 +1125,7 @@ export const presupuestoController = {
           subtotal,
           descuento,
           total,
-          JSON.stringify(presupuestoData),
+          JSON.stringify(normalizedPresupuesto),
           incluirMotorizacion,
           precioTotalMotorizacion,
           id
@@ -1061,7 +1134,7 @@ export const presupuestoController = {
 
       // Insertar los nuevos items
       await Promise.all(
-        presupuestoData.productos.map(async (producto: any) => {
+        normalizedPresupuesto.productos.map(async (producto: any) => {
           // Si es un producto del catálogo (como COLOCACIONES)
           if (producto.nombre === 'COLOCACIONES') {
             return queryRunner.query(`
@@ -1076,24 +1149,10 @@ export const presupuestoController = {
                 producto.cantidad,
                 producto.precioUnitario,
                 producto.subtotal,
-                JSON.stringify(producto.detalles || {})
+                JSON.stringify(buildItemDetallesSnapshot(producto))
               ]
             );
           } else {
-            // Para productos personalizados (cortinas)
-            const detallesCompletos = {
-              ...producto.detalles,
-              espacio: producto.espacio,
-              incluirMotorizacion: producto.incluirMotorizacion,
-              precioMotorizacion: producto.precioMotorizacion,
-              tipoTela: producto.tipoTela,
-              tipoApertura: producto.tipoApertura,
-              colorSistema: producto.colorSistema,
-              ladoComando: producto.ladoComando,
-              ladoApertura: producto.ladoApertura,
-              detalle: producto.detalle
-            };
-            
             return queryRunner.query(`
               INSERT INTO presupuesto_items 
               (presupuesto_id, producto_id, nombre, descripcion, cantidad, precio_unitario, subtotal, detalles)
@@ -1105,7 +1164,7 @@ export const presupuestoController = {
                 producto.cantidad,
                 producto.precioUnitario,
                 producto.subtotal,
-                JSON.stringify(detallesCompletos)
+                JSON.stringify(buildItemDetallesSnapshot(producto))
               ]
             );
           }
