@@ -50,6 +50,14 @@ export const AppDataSource = new DataSource({
     Notification,
     NotificationReadStatus
   ],
+  extra: {
+    connectionLimit: Number(process.env.DB_POOL_SIZE ?? 5),
+    waitForConnections: true,
+    queueLimit: 50,
+    maxIdle: 2,
+    idleTimeout: 60_000,
+  },
+  poolSize: Number(process.env.DB_POOL_SIZE ?? 5),
 });
 
 

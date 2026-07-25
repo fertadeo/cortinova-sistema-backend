@@ -102,3 +102,27 @@ AppDataSource.initialize()
         });
     })
     .catch(error => console.log(error));
+
+let shuttingDown = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal}: cerrando pool MySQL...`);
+  try {
+    if (AppDataSource.isInitialized) {
+      await AppDataSource.destroy();
+      console.log('[shutdown] Pool MySQL cerrado');
+    }
+  } catch (error) {
+    console.error('[shutdown] Error al cerrar MySQL:', error);
+  }
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
+});
