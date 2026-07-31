@@ -611,7 +611,7 @@ export const presupuestoController = {
       await queryRunner.connect();
       await queryRunner.startTransaction();
 
-      // Consulta base
+      // Consulta base: sin filtrar por disponible para poder ver todos los productos de la DB
       let query = `
         SELECT 
           id,
@@ -627,12 +627,12 @@ export const presupuestoController = {
           sistema_id,
           proveedor_id
         FROM producto
-        WHERE disponible = 1
+        WHERE 1=1
       `;
 
       const params: any[] = [];
 
-      // Filtros
+      // Filtros opcionales (solo se aplican si vienen en la query)
       if (sistemaId) {
         query += ` AND sistema_id = ?`;
         params.push(sistemaId); 
@@ -657,7 +657,7 @@ export const presupuestoController = {
         params.push(proveedorId);
       } 
 
-      // Filtro por nombre (q)
+      // Filtro por nombre (q). Con q=* o sin q se listan todos los que cumplan los filtros opcionales
       if (q && typeof q === 'string' && q.trim() !== '' && q !== '*') {
         query += ` AND LOWER(nombreProducto) LIKE ?`;
         params.push(`%${q.toLowerCase()}%`);
