@@ -16,6 +16,7 @@ import medidasRoutes from './routes/medidasRoutes';
 import rubrosRoutes from './routes/rubrosRoutes';
 import { handleUploadError } from './middlewares/uploadError';
 import notificationRoutes from './routes/notificationRoutes';
+import reglaNegocioRoutes from './routes/reglaNegocioRoutes';
 
 const app = express();
 const port = process.env.PORT || 8081;
@@ -75,6 +76,7 @@ app.use('/api/pedidos', pedidoRoutes);
 app.use('/api/medidas', medidasRoutes);
 app.use('/api/rubros', rubrosRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/reglas-negocio', reglaNegocioRoutes);
 
 // Rutas adicionales
 app.get('/', (req, res) => {
