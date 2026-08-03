@@ -14,6 +14,7 @@ import { NotificationSettings } from '../entities/NotificationSettings';
 import { PushSubscription } from '../entities/PushSubscription';
 import { Notification } from '../entities/Notifications';
 import { NotificationReadStatus } from '../entities/NotificationReadStatus';
+import { ReglaNegocio } from '../entities/ReglaNegocio';
 
 
 // Determinar si estamos en modo producción o desarrollo
@@ -48,7 +49,8 @@ export const AppDataSource = new DataSource({
     NotificationSettings, 
     PushSubscription,
     Notification,
-    NotificationReadStatus
+    NotificationReadStatus,
+    ReglaNegocio
   ],
   extra: {
     connectionLimit: Number(process.env.DB_POOL_SIZE ?? 5),
