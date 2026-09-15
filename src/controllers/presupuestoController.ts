@@ -110,15 +110,12 @@ export const presupuestoController = {
   // Obtener presupuestos por ID de cliente
   getPresupuestosByCliente: async (req: Request, res: Response) => {
     const clienteId = req.params.clienteId;
-    const queryRunner = AppDataSource.createQueryRunner();
 
     try {
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
-
-      const presupuestos = await queryRunner.query(`
+      // OPTIMIZACIÓN: Usar una sola consulta con LEFT JOIN en lugar de N+1 queries
+      const query = `
         SELECT 
-          p.id,
+          p.id as presupuesto_id,
           p.numero_presupuesto,
           p.fecha,
           p.subtotal,
@@ -127,49 +124,79 @@ export const presupuestoController = {
           p.presupuesto_json,
           c.nombre as cliente_nombre,
           c.telefono as cliente_telefono,
-          c.email as cliente_email
+          c.email as cliente_email,
+          pi.id as item_id,
+          pi.nombre as item_nombre,
+          pi.descripcion as item_descripcion,
+          pi.cantidad as item_cantidad,
+          pi.precio_unitario as item_precio_unitario,
+          pi.subtotal as item_subtotal,
+          pi.detalles as item_detalles
         FROM presupuestos p
         JOIN clientes c ON p.cliente_id = c.id
-        WHERE p.cliente_id = ?`, [clienteId]);
+        LEFT JOIN presupuesto_items pi ON pi.presupuesto_id = p.id
+        WHERE p.cliente_id = ?
+        ORDER BY p.fecha DESC, p.id, pi.id
+      `;
 
-      const presupuestosConItems = await Promise.all(
-        presupuestos.map(async (presupuesto: any) => {
-          const items = await queryRunner.query(`
-            SELECT 
-              pi.id,
-              pi.nombre,
-              pi.descripcion,
-              pi.cantidad,
-              pi.precio_unitario,
-              pi.subtotal,
-              pi.detalles
-            FROM presupuesto_items pi
-            WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
+      const rows = await AppDataSource.query(query, [clienteId]);
 
-          // Parsear el presupuesto_json si existe
-          const presupuestoJsonRaw = presupuesto.presupuesto_json ?
-            JSON.parse(presupuesto.presupuesto_json) : null;
-          const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
+      // Agrupar los resultados por presupuesto_id en memoria
+      const presupuestosMap = new Map<number, any>();
 
-          return {
-            ...presupuesto,
+      for (const row of rows) {
+        const presupuestoId = row.presupuesto_id;
+
+        if (!presupuestosMap.has(presupuestoId)) {
+          // Parsear el presupuesto_json de forma segura
+          let presupuestoJson = null;
+          try {
+            const presupuestoJsonRaw = row.presupuesto_json ? JSON.parse(row.presupuesto_json) : null;
+            presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
+          } catch (parseError) {
+            console.error(`Error parsing presupuesto_json for presupuesto ${presupuestoId}:`, parseError);
+          }
+
+          presupuestosMap.set(presupuestoId, {
+            id: presupuestoId,
+            numero_presupuesto: row.numero_presupuesto,
+            fecha: row.fecha,
+            subtotal: row.subtotal,
+            descuento: row.descuento,
+            total: row.total,
             presupuesto_json: presupuestoJson,
-            items: items.map((item: any) => ({
-              ...item,
-              detalles: safeJsonParse(item.detalles || '{}')
-            }))
-          };
-        })
-      );
+            cliente_nombre: row.cliente_nombre,
+            cliente_telefono: row.cliente_telefono,
+            cliente_email: row.cliente_email,
+            items: []
+          });
+        }
 
-      await queryRunner.commitTransaction();
+        // Agregar el item si existe
+        if (row.item_id) {
+          presupuestosMap.get(presupuestoId)!.items.push({
+            id: row.item_id,
+            nombre: row.item_nombre,
+            descripcion: row.item_descripcion,
+            cantidad: row.item_cantidad,
+            precio_unitario: row.item_precio_unitario,
+            subtotal: row.item_subtotal,
+            detalles: safeJsonParse(row.item_detalles || '{}')
+          });
+        }
+      }
+
+      const presupuestosConItems = Array.from(presupuestosMap.values());
+
       res.json({ success: true, data: presupuestosConItems });
 
     } catch (error) {
-      await queryRunner.rollbackTransaction();
-      res.status(500).json({ success: false, error });
-    } finally {
-      await queryRunner.release();
+      console.error("Error al obtener presupuestos por cliente:", error);
+      res.status(500).json({ 
+        success: false,
+        message: "Error al obtener presupuestos por cliente",
+        error: error instanceof Error ? error.message : 'Error desconocido'
+      });
     }
   },
 
@@ -313,15 +340,16 @@ export const presupuestoController = {
 
   // Agregar esta nueva función
   getAllPresupuestos: async (req: Request, res: Response) => {
-    const queryRunner = AppDataSource.createQueryRunner();
-
     try {
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
+      // Obtener parámetros de paginación opcionales
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
 
-      const presupuestos = await queryRunner.query(`
+      // OPTIMIZACIÓN: Usar una sola consulta con LEFT JOIN en lugar de N+1 queries
+      // Esto elimina el problema de queryRunner concurrente y reduce la carga en el pool
+      const query = `
         SELECT 
-          p.id,
+          p.id as presupuesto_id,
           p.numero_presupuesto,
           p.fecha,
           p.subtotal,
@@ -331,53 +359,83 @@ export const presupuestoController = {
           c.id as cliente_id,
           c.nombre as cliente_nombre,
           c.telefono as cliente_telefono,
-          c.email as cliente_email
+          c.email as cliente_email,
+          pi.id as item_id,
+          pi.nombre as item_nombre,
+          pi.descripcion as item_descripcion,
+          pi.cantidad as item_cantidad,
+          pi.precio_unitario as item_precio_unitario,
+          pi.subtotal as item_subtotal,
+          pi.detalles as item_detalles
         FROM presupuestos p
         JOIN clientes c ON p.cliente_id = c.id
-        ORDER BY p.fecha DESC`);
+        LEFT JOIN presupuesto_items pi ON pi.presupuesto_id = p.id
+        ORDER BY p.fecha DESC, p.id, pi.id
+        ${limit ? `LIMIT ${limit} OFFSET ${offset}` : ''}
+      `;
 
-      const presupuestosConItems = await Promise.all(
-        presupuestos.map(async (presupuesto: any) => {
-          const items = await queryRunner.query(`
-            SELECT 
-              pi.id,
-              pi.nombre,
-              pi.descripcion,
-              pi.cantidad,
-              pi.precio_unitario,
-              pi.subtotal,
-              pi.detalles
-            FROM presupuesto_items pi
-            WHERE pi.presupuesto_id = ?`, [presupuesto.id]);
+      // Usar la conexión del pool directamente, no un queryRunner con transacción
+      // (las transacciones son innecesarias para operaciones de solo lectura)
+      const rows = await AppDataSource.query(query);
 
-          // Parsear el presupuesto_json si existe
-          const presupuestoJsonRaw = presupuesto.presupuesto_json ?
-            JSON.parse(presupuesto.presupuesto_json) : null;
-          const presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
+      // Agrupar los resultados por presupuesto_id en memoria
+      const presupuestosMap = new Map<number, any>();
 
-          return {
-            ...presupuesto,
+      for (const row of rows) {
+        const presupuestoId = row.presupuesto_id;
+
+        if (!presupuestosMap.has(presupuestoId)) {
+          // Parsear el presupuesto_json de forma segura
+          let presupuestoJson = null;
+          try {
+            const presupuestoJsonRaw = row.presupuesto_json ? JSON.parse(row.presupuesto_json) : null;
+            presupuestoJson = presupuestoJsonRaw ? normalizePresupuestoSnapshot(presupuestoJsonRaw) : null;
+          } catch (parseError) {
+            console.error(`Error parsing presupuesto_json for presupuesto ${presupuestoId}:`, parseError);
+            // Continuar con null si hay error de parseo
+          }
+
+          presupuestosMap.set(presupuestoId, {
+            id: presupuestoId,
+            numero_presupuesto: row.numero_presupuesto,
+            fecha: row.fecha,
+            subtotal: row.subtotal,
+            descuento: row.descuento,
+            total: row.total,
             presupuesto_json: presupuestoJson,
-            items: items.map((item: any) => ({
-              ...item,
-              detalles: safeJsonParse(item.detalles || '{}')
-            }))
-          };
-        })
-      );
+            cliente_id: row.cliente_id,
+            cliente_nombre: row.cliente_nombre,
+            cliente_telefono: row.cliente_telefono,
+            cliente_email: row.cliente_email,
+            items: []
+          });
+        }
 
-      await queryRunner.commitTransaction();
+        // Agregar el item si existe (puede no existir si es LEFT JOIN sin items)
+        if (row.item_id) {
+          presupuestosMap.get(presupuestoId)!.items.push({
+            id: row.item_id,
+            nombre: row.item_nombre,
+            descripcion: row.item_descripcion,
+            cantidad: row.item_cantidad,
+            precio_unitario: row.item_precio_unitario,
+            subtotal: row.item_subtotal,
+            detalles: safeJsonParse(row.item_detalles || '{}')
+          });
+        }
+      }
+
+      const presupuestosConItems = Array.from(presupuestosMap.values());
+
       res.json({ success: true, data: presupuestosConItems });
 
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      console.error("Error al obtener los presupuestos:", error);
       res.status(500).json({ 
         success: false, 
         message: "Error al obtener los presupuestos",
-        error 
+        error: error instanceof Error ? error.message : 'Error desconocido'
       });
-    } finally {
-      await queryRunner.release();
     }
   },
 
