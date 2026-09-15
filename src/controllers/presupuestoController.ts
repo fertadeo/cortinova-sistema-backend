@@ -1072,6 +1072,85 @@ export const presupuestoController = {
         });
       }
 
+      // ============================================================
+      // HOTFIX 2026-09-15: Validación estricta de payload ANTES de normalización
+      // Prevenir pérdida de datos por payloads incompletos
+      // ============================================================
+      
+      // Validar que el campo productos esté presente y sea un array
+      if (presupuestoData.productos === undefined || presupuestoData.productos === null) {
+        console.error('[PRESUPUESTO_UPDATE_REJECTED] Payload sin campo productos', {
+          presupuestoId: id,
+          numeroPresupuesto: presupuestoActual.numero_presupuesto,
+          userId: (req as any).user_id || 'unknown',
+          timestamp: new Date().toISOString(),
+          hasProductosField: 'productos' in presupuestoData,
+          productosValue: presupuestoData.productos
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'El campo "productos" es obligatorio para actualizar el presupuesto',
+          code: 'MISSING_PRODUCTOS_FIELD'
+        });
+      }
+
+      if (!Array.isArray(presupuestoData.productos)) {
+        console.error('[PRESUPUESTO_UPDATE_REJECTED] Campo productos no es array', {
+          presupuestoId: id,
+          numeroPresupuesto: presupuestoActual.numero_presupuesto,
+          userId: (req as any).user_id || 'unknown',
+          timestamp: new Date().toISOString(),
+          productosType: typeof presupuestoData.productos
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'El campo "productos" debe ser un array',
+          code: 'INVALID_PRODUCTOS_TYPE'
+        });
+      }
+
+      // Si productos es un array vacío, rechazar actualización 
+      // (prevenir pérdida accidental de items existentes)
+      if (presupuestoData.productos.length === 0) {
+        console.error('[PRESUPUESTO_UPDATE_REJECTED] Array productos vacío', {
+          presupuestoId: id,
+          numeroPresupuesto: presupuestoActual.numero_presupuesto,
+          userId: (req as any).user_id || 'unknown',
+          timestamp: new Date().toISOString(),
+          incomingProductsCount: 0
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: 'No se puede actualizar presupuesto con array de productos vacío. Si desea eliminar el presupuesto, use el endpoint DELETE /presupuestos/:id',
+          code: 'EMPTY_PRODUCTOS_ARRAY'
+        });
+      }
+
+      // Validar que cada producto tenga campos obligatorios básicos
+      const invalidProducts = presupuestoData.productos.filter((p: any, idx: number) => {
+        return !p.nombre || p.cantidad === undefined || p.cantidad === null;
+      });
+
+      if (invalidProducts.length > 0) {
+        console.error('[PRESUPUESTO_UPDATE_REJECTED] Productos con campos faltantes', {
+          presupuestoId: id,
+          numeroPresupuesto: presupuestoActual.numero_presupuesto,
+          userId: (req as any).user_id || 'unknown',
+          timestamp: new Date().toISOString(),
+          invalidProductsCount: invalidProducts.length,
+          totalProducts: presupuestoData.productos.length
+        });
+        
+        return res.status(400).json({
+          success: false,
+          error: `${invalidProducts.length} producto(s) tienen campos obligatorios faltantes (nombre, cantidad son requeridos)`,
+          code: 'INVALID_PRODUCTOS_STRUCTURE'
+        });
+      }
+
       const presupuestoDbActual = await queryRunner.query(
         `SELECT presupuesto_json FROM presupuestos WHERE id = ?`,
         [id]
@@ -1104,6 +1183,22 @@ export const presupuestoController = {
           incluirMotorizacion = true;
           precioTotalMotorizacion += (producto.precioMotorizacion || 0) * (producto.cantidad || 1);
         }
+      });
+
+      // HOTFIX 2026-09-15: Log item counts antes del destructive replace
+      const itemsCountBeforeDelete = await queryRunner.query(
+        `SELECT COUNT(*) as count FROM presupuesto_items WHERE presupuesto_id = ?`,
+        [id]
+      );
+      
+      console.log('[PRESUPUESTO_UPDATE_REPLACE]', {
+        presupuestoId: id,
+        numeroPresupuesto: presupuestoActual.numero_presupuesto,
+        userId: (req as any).user_id || 'unknown',
+        timestamp: new Date().toISOString(),
+        itemsBeforeDelete: itemsCountBeforeDelete[0].count,
+        itemsToInsert: normalizedPresupuesto.productos.length,
+        netChange: normalizedPresupuesto.productos.length - itemsCountBeforeDelete[0].count
       });
 
       // Eliminar items actuales del presupuesto
@@ -1172,6 +1267,16 @@ export const presupuestoController = {
       );
 
       await queryRunner.commitTransaction();
+
+      // HOTFIX 2026-09-15: Log actualización exitosa
+      console.log('[PRESUPUESTO_UPDATE_SUCCESS]', {
+        presupuestoId: id,
+        numeroPresupuesto: presupuestoActual.numero_presupuesto,
+        userId: (req as any).user_id || 'unknown',
+        timestamp: new Date().toISOString(),
+        finalItemsCount: normalizedPresupuesto.productos.length,
+        finalTotal: total
+      });
 
       // Enviar notificación de actualización
       try {
